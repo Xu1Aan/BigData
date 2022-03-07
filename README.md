@@ -4,7 +4,7 @@
 
 - [x] Hadoop
 
-  [hadoop集群搭建](./hadoop/入门.md)
+  [hadoop集群搭建](./hadoop/hadoop.md)
 
-  [HDFS分布式文件系统](./hadoop/HDFS.md)
+  [HDFS分布式文件系统](./hadoop/hdfs.md)
 
