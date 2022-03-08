@@ -163,5 +163,140 @@
           [-usage [cmd ...]]
   ```
 
-  
+
+### 2.2 上传
+
+首先需要启动`hdsf`
+
+```shell
+start-dfs.sh
+```
+
+在浏览器输入`hadoop102:9870`访问`hdfs`网页，创建`sanguo`目录
+
+1. -copyFromLocal：从本地文件系统中拷贝文件到HDFS路径去
+
+   ```shell
+   vim liubei.txt # 写入相关文字
+   hadoop fs -copyFromLocal ./liubei.txt /sanguo # 执行后可在网页查看
+   ```
+
+2. -moveFromLocal：从本地剪切粘贴到HDFS
+
+   ```shell
+   vim guanyu.txt # 写入相关文字
+   hadoop fs -moveFromLocal ./guanyu.txt /sanguo  # 执行后可在网页查看，本地文件上传后就被删除了
+   ```
+
+3. -appendToFile：追加一个文件到已经存在的文件末尾
+
+   ```shell
+   vim zhangfei.txt # 写入相关文字
+   hadoop fs -appendToFile ./zhangfei /sanguo/liubei.txt 
+   # 将zhangfei.txt内容追加到liubei.txt中
+   ```
+
+4. -put：等同于copyFromLocal
+
+   ```shell
+   hadoop fs -put ./zhangfei.txt /sanguo
+   ```
+
+### 2.3 下载
+
+1. -copyToLocal：从HDFS拷贝到本地
+
+   ```shell
+   hadoop fs -copyToLocal /sanguo/guanyu.txt ./
+   # 将guanyu.txt删除，方便下面测试
+   rm -rf guanyu.txt
+   ```
+
+2. -get：等同于copyToLocal，就是从HDFS下载文件到本地
+
+   ```shell
+   hadoop fs -get /sanguo/guanyu.txt ./
+   ```
+
+3. -getmerge：合并下载多个文件，比如HDFS的目录 `/sanguo`下有多个文件:`liubei.txt`, `guanyu.txt`,`zhangfei.txt`,下载到本地`xiongdi.txt`
+
+   ```
+   hadoop fs -getmerge /sanguo/liubei.txt /sanguo/guanyu.txt /sanguo/zhagfei.txt ./xiongdi.txt
+   ```
+
+### 2.4 HDFS直接操作
+
+1. -ls: 显示目录信息
+
+   ```shell
+   hadoop fs -ls /
+   ```
+
+2. -mkdir：在HDFS上创建目录
+
+   ```shell
+   hadoop fs -mkdir /xiyou # 创建目录
+   hadoop fs -mkdir -p /shuihu/liangsan #创建多层目录需要加上 -p
+   ```
+
+3. -cat：显示文件内容
+
+   ```shell
+   hadoop fs -cat /sanguo/guanyu.txt
+   ```
+
+4. -chgrp 、-chmod、-chown：Linux文件系统中的用法一样，修改文件所属权限
+
+   ```shell
+   hadoop fs  -chmod  666 /sanguo/guanyu.txt
+   hadoop fs  -chown  xu1an:xu1an   /sanguo/zhangfei.txt
+   ```
+
+5. -cp ：从HDFS的一个路径拷贝到HDFS的另一个路径
+
+   ```shell
+   hadoop fs -cp /sanguo/zhangfei.txt /xiyou # 将zhangfei.txt复制到xiyou下
+   ```
+
+6. -mv：在HDFS目录中移动文件
+
+   ```shell
+   hadoop fs -mv /sanguo/guanyu.txt /xiyou # 将guanyu.txt移动到xiyou下
+   hadoop fs -mv /sanguo/liubei.txt /sanguo/zhugong.txt #将liubei.txt改名为zhugong.txt
+   ```
+
+7. -tail：显示一个文件的末尾1kb的数据
+
+   ```shell
+   hadoop fs -tail /sanguo/zhangfei.txt # 显示头部 不支持 -n 
+   hadoop fs -head /sanhuo/zhangfei.txt # 显示尾部
+   ```
+
+8. -rm：删除文件或文件夹
+
+   ```shell
+   hadoop fs -rm /xiyou/zhangfei.txt # 删除文件
+   hadoop fs -rm -r /xiyou # 删除文件夹
+   ```
+
+9. -rmdir：删除空目录
+
+   ```shell
+   hadoop fs -rmdir /shuihu/liangsan
+   ```
+
+10. -du统计文件夹的大小信息
+
+    ```shell
+    hadoop fs -du /
+    hadoop fs -du -h / #有单位 52  156  /sanguo 三倍关系：有三个副本
+    ```
+
+11. -setrep：设置HDFS中文件的副本数量
+
+    ```shell
+    hadoop fs -setrep 6 /sanguo/zhangfei.txt # 设置副本数为6
+    ```
+
+    这里设置的副本数只是记录在NameNode的元数据中，是否真的会有这么多副本，还得看DataNode的数量。因为目前只有3台设备，最多也就3个副本，只有节点数的增加到10台时，副本数才能达到10。
 
