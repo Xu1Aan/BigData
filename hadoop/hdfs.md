@@ -106,6 +106,8 @@
 
   **总结：HDFS块的大小设置主要取决于磁盘传输速率**
 
+---
+
 ## 2 HDFS的Shell操作
 
 ### 2.1 hdfs命令
@@ -300,3 +302,335 @@ start-dfs.sh
 
     这里设置的副本数只是记录在NameNode的元数据中，是否真的会有这么多副本，还得看DataNode的数量。因为目前只有3台设备，最多也就3个副本，只有节点数的增加到10台时，副本数才能达到10。
 
+---
+
+## 3 HDFS客户端操作
+
+### 3.1 准备Windows开发环境
+
+1. 配置环境变量
+
+2. 创建Maven项目，并导入相应的依赖
+
+   ```xml
+   <dependencies>
+       <dependency>
+           <groupId>junit</groupId>
+           <artifactId>junit</artifactId>
+           <version>4.12</version>
+       </dependency>
+       <dependency>
+           <groupId>org.apache.logging.log4j</groupId>
+           <artifactId>log4j-slf4j-impl</artifactId>
+           <version>2.12.0</version>
+       </dependency>
+       <dependency>
+           <groupId>org.apache.hadoop</groupId>
+           <artifactId>hadoop-client</artifactId>
+           <version>3.1.3</version>
+       </dependency>
+   </dependencies>
+   ```
+
+3. 在项目的src/main/resources目录下，新建一个文件，命名为“log4j2.xml”，在文件中填入
+
+   ```xml
+   <?xml version="1.0" encoding="UTF-8"?>
+   <Configuration status="error" strict="true" name="XMLConfig">
+       <Appenders>
+           <!-- 类型名为Console，名称为必须属性 -->
+           <Appender type="Console" name="STDOUT">
+               <!-- 布局为PatternLayout的方式，
+               输出样式为[INFO] [2018-01-22 17:34:01][org.test.Console]I'm here -->
+               <Layout type="PatternLayout"
+                       pattern="[%p] [%d{yyyy-MM-dd HH:mm:ss}][%c{10}]%m%n" />
+           </Appender>
+   
+       </Appenders>
+   
+       <Loggers>
+           <!-- 可加性为false -->
+           <Logger name="test" level="info" additivity="false">
+               <AppenderRef ref="STDOUT" />
+           </Logger>
+   
+           <!-- root loggerConfig设置 -->
+           <Root level="info">
+               <AppenderRef ref="STDOUT" />
+           </Root>
+       </Loggers>
+   </Configuration>
+   ```
+
+4. 创建com.xu1an.hdfs.HdfsClinet类
+
+   ```java
+   public class HdfsClient{	
+   @Test
+   public void testMkdirs() throws IOException, InterruptedException, URISyntaxException{
+   		
+   		// 1 获取文件系统
+   		Configuration configuration = new Configuration();
+   		// 配置在集群上运行
+   		// configuration.set("fs.defaultFS", "hdfs://hadoop102:9820");
+   		// FileSystem fs = FileSystem.get(configuration);
+   
+   		FileSystem fs = FileSystem.get(new URI("hdfs://hadoop102:9820"), configuration, "xu1an");
+   		
+   		// 2 创建目录
+   		fs.mkdirs(new Path("/1108/daxian/banzhang"));
+   		
+   		// 3 关闭资源
+   		fs.close();
+   	}
+   }
+   ```
+
+5. 运行时需要配置用户名称
+
+   <img src=".\picture\java客户端操作.png" style="zoom:75%;" />
+
+   客户端去操作HDFS时，是有一个用户身份的。默认情况下，HDFS客户端API会从JVM中获取一个参数来作为自己的用户身份：-DHADOOP_USER_NAME=xu1an，xu1an为用户名称。
+
+### 3.2 HDFS的API操作
+
+#### 3.2.1 HDFS文件上传(测试参数优先级)
+
+1. 编写源代码
+
+   ```java
+   @test
+   public void testCopyFromLocalFile() throws IOException(){
+   	//1、 获取文件系统
+   	Configuration conf = new Configuration();
+   	conf.set("dfs.replication","5");
+       FileSystem fs = FileSystem.get(new URI(hdfs://hadoop:9820), conf, "xu1an" );
+       //2、上传文件
+      	fs.copyFromLocalFile(false,true,new Path("D:\\web\\bigdataDemo\\src\\main\\resources\\hello.txt"),new Path("/client_test"));
+        //3、 关闭资源
+        fs.close;         
+       
+   }
+   ```
+
+2. 将`hdfs-site.xml`拷贝到项目的根目录下
+
+   ```xml
+   <?xml version="1.0" encoding="UTF-8"?>
+   <?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+   
+   <configuration>
+   	<property>
+   		<name>dfs.replication</name>
+            <value>1</value>
+   	</property>
+   </configuration>
+   ```
+
+3. 参数优先级
+
+   测试配置的优先级 `Confrguration` > `hdfs-site.xml` > `hdfs-default.xml`
+
+#### 3.2.2 HDFS文件下载
+
+```java
+@Test
+public void testCopyToLocalFile() throws IOException, InterruptedException, URISyntaxException{
+
+		// 1 获取文件系统
+		Configuration configuration = new Configuration();
+		FileSystem fs = FileSystem.get(new URI("hdfs://hadoop102:9820"), configuration, "xu1an");
+		
+		// 2 执行下载操作
+		// boolean delSrc 指是否将原文件删除
+		// Path src 指要下载的文件路径
+		// Path dst 指将文件下载到的路径
+		// boolean useRawLocalFileSystem 是否开启文件校验
+		fs.copyToLocalFile(false, new Path("/banzhang.txt"), new Path("e:/banhua.txt"), true);
+		
+		// 3 关闭资源
+		fs.close();
+}
+```
+
+#### 3.2.3 HDFS删除文件和目录
+
+`recursive=true`递归删除目录路径下的文件夹和文件
+
+```java
+@Test
+public void testDelete() throws IOException, InterruptedException, URISyntaxException{
+
+	// 1 获取文件系统
+	Configuration configuration = new Configuration();
+	FileSystem fs = FileSystem.get(new URI("hdfs://hadoop102:9820"), configuration, "xu1an");
+		
+	// 2 执行删除
+	fs.delete(new Path("/0508/"), true);
+		
+	// 3 关闭资源
+	fs.close();
+}
+
+```
+
+#### 3.2.4 HDFS文件更名和移动
+
+```java
+@Test
+public void testRename() throws IOException, InterruptedException, URISyntaxException{
+
+	// 1 获取文件系统
+	Configuration configuration = new Configuration();
+	FileSystem fs = FileSystem.get(new URI("hdfs://hadoop102:9820"), configuration, "atguigu"); 
+		
+	// 2 修改文件名称
+	fs.rename(new Path("/banzhang.txt"), new Path("/banhua.txt"));
+		
+	// 3 关闭资源
+	fs.close();
+}
+```
+
+#### 3.2.5 HDFS文件详情查看
+
+`recursive=true`递归查看目录路径及其子路径下文件详情
+
+```java
+@Test
+public void testListFiles() throws IOException, InterruptedException, URISyntaxException{
+
+	// 1获取文件系统
+	Configuration configuration = new Configuration();
+	FileSystem fs = FileSystem.get(new URI("hdfs://hadoop102:9820"), configuration, "xu1an"); 
+		
+	// 2 获取文件详情
+	RemoteIterator<LocatedFileStatus> listFiles = fs.listFiles(new Path("/"), true);
+		
+	while(listFiles.hasNext()){
+		LocatedFileStatus status = listFiles.next();
+			
+		// 输出详情
+		// 文件名称
+		System.out.println(status.getPath().getName());
+		// 长度
+		System.out.println(status.getLen());
+		// 权限
+		System.out.println(status.getPermission());
+		// 分组
+		System.out.println(status.getGroup());
+			
+		// 获取存储的块信息
+		BlockLocation[] blockLocations = status.getBlockLocations();
+			
+		for (BlockLocation blockLocation : blockLocations) {
+				
+			// 获取块存储的主机节点
+			String[] hosts = blockLocation.getHosts();
+				
+			for (String host : hosts) {
+				System.out.println(host);
+			}
+		}
+			
+		System.out.println("-----------班长的分割线----------");
+	}
+
+// 3 关闭资源
+fs.close();
+}
+```
+
+#### 3.2.6 HDFS文件和文件夹判断
+
+只会判读同个目录下的文件或文件夹
+
+```java
+@Test
+public void testListStatus() throws IOException, InterruptedException, URISyntaxException{
+		
+	// 1 获取文件配置信息
+	Configuration configuration = new Configuration();
+	FileSystem fs = FileSystem.get(new URI("hdfs://hadoop102:9820"), configuration, "xu1an");
+		
+	// 2 判断是文件还是文件夹
+	FileStatus[] listStatus = fs.listStatus(new Path("/"));
+		
+	for (FileStatus fileStatus : listStatus) {
+		
+		// 如果是文件
+		if (fileStatus.isFile()) {
+				System.out.println("f:"+fileStatus.getPath().getName());
+			}else {
+				System.out.println("d:"+fileStatus.getPath().getName());
+			}
+		}
+		
+	// 3 关闭资源
+	fs.close();
+}
+```
+
+## 4 HDFS的数据流
+
+### 4.1 HDFS写数据流程
+
+#### 4.1.1 剖析文件写入
+
+<img src=".\picture\hdfs的写数据流程.png" style="zoom:60%;" />
+
+
+
+（1）客户端通过Distributed FileSystem模块向NameNode请求上传文件，NameNode检查目标文件是否已存在，父目录是否存在。
+
+（2）NameNode返回是否可以上传。
+
+（3）客户端请求第一个 Block上传到哪几个DataNode服务器上。
+
+（4）NameNode返回3个DataNode节点，分别为dn1、dn2、dn3。
+
+（5）客户端通过FSDataOutputStream模块请求dn1上传数据，dn1收到请求会继续调用dn2，然后dn2调用dn3，将这个通信管道建立完成。
+
+（6）dn1、dn2、dn3逐级应答客户端。
+
+（7）客户端开始往dn1上传第一个Block（先从磁盘读取数据放到一个本地内存缓存），以Packet为单位，dn1收到一个Packet就会传给dn2，dn2传给dn3；dn1每传一个packet会放入一个应答队列等待应答。
+
+（8）当一个Block传输完成之后，客户端再次请求NameNode上传第二个Block的服务器。（重复执行3-7步）。
+
+源码解析：org.apache.hadoop.hdfs.DFSOutputStream
+
+- HDFS根据请求返回DataNode的节点的策略？-- 机架感知
+
+  如果当前Client所在机器有DataNode节点，那就返回当前机器DN1,否则从集群中随机一台。根据第一台机器的位置，然后再其他机架上随机一台，在第二台机器所在机架上再随机一台。 以上策略的缘由：为了提高数据的可靠性，同时一定程度也保证数据传输的效率！
+
+- 客户端建立传输通道的时候如何确定和哪一台DataNode先建立连接？-- 网络拓扑
+
+  找离client最近的一台机器先建立通道。
+
+- Client为什么是以串行的方式建立通道？
+
+  本质上就是为了降低client的IO开销
+
+- 数据传输的时候如何保证数据成功？
+
+  采用了ack回执的策略保证了数据完整成功上传。
+
+#### 4.1.2 网络拓扑-节点距离计算
+
+在HDFS写数据的过程中，NameNode会选择距离待上传数据最近距离的DataNode接收数据。那么这个最近距离怎么计算呢？
+
+节点距离：两个节点到达最近的共同祖先的距离总和。 
+
+<img src=".\picture\网络拓扑节点距离计算.png" style="zoom:80%;" />
+
+例如，假设有数据中心d1机架r1中的节点n1。该节点可以表示为/d1/r1/n1。利用这种标记，这里给出四种距离描述。
+
+大家算一算每两个节点之间的距离。
+
+<img src=".\picture\网络拓扑节点距离计算_1.png" style="zoom:75%;" />
+
+#### 4.1.3 机架感知（副本存储节点选择）
+
+<img src=".\picture\机架感知.png" style="zoom:80%;" />
+
+ 
