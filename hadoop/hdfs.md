@@ -1,4 +1,4 @@
-# HDFS分布式文件系统
+#  HDFS分布式文件系统
 
 ## 1 HDFS概述
 
@@ -629,8 +629,533 @@ public void testListStatus() throws IOException, InterruptedException, URISyntax
 
 <img src=".\picture\网络拓扑节点距离计算_1.png" style="zoom:75%;" />
 
-#### 4.1.3 机架感知（副本存储节点选择）
+#### 4.1.3 机架感知（副本存储节 点选择）
 
 <img src=".\picture\机架感知.png" style="zoom:80%;" />
 
- 
+### 4.2 HDFS读数据流程
+
+![](.\picture\hdfs的读数据流程.png)
+
+ （1）客户端通过DistributedFileSystem向NameNode请求下载文件，NameNode通过查询元数据，找到文件块所在的DataNode地址。
+
+（2）挑选一台DataNode（就近原则，然后随机）服务器，请求读取数据。
+
+（3）DataNode开始传输数据给客户端（从磁盘里面读取数据输入流，以Packet为单位来做校验）。
+
+（4）客户端以Packet为单位接收，先在本地缓存，然后写入目标文件
+
+---
+
+## 5 NN和2NN
+
+### 5.1 NN和2NN工作机制
+
+思考：NameNode中的元数据是存储在哪里的？
+
+首先，我们做个假设，如果存储在NameNode节点的磁盘中，因为经常需要进行随机访问，还有响应客户请求，必然是效率过低。因此，元数据需要存放在内存中。但如果只存在内存中，一旦断电，元数据丢失，整个集群就无法工作了。因此产生在磁盘中备份元数据的FsImage。
+
+这样又会带来新的问题，当在内存中的元数据更新时，如果同时更新FsImage，就会导致效率过低，但如果不更新，就会发生一致性问题，一旦NameNode节点断电，就会产生数据丢失。因此，引入Edits文件(只进行追加操作，效率很高)。每当元数据有更新或者添加元数据时，修改内存中的元数据并追加到Edits中。这样，一旦NameNode节点断电，可以通过FsImage和Edits的合并，合成元数据。
+
+但是，如果长时间添加数据到Edits中，会导致该文件数据过大，效率降低，而且一旦断电，恢复元数据需要的时间过长。因此，需要定期进行FsImage和Edits的合并，如果这个操作由NameNode节点完成，又会效率过低。因此，引入一个新的节点SecondaryNamenode，专门用于FsImage和Edits的合并。
+
+        1. 元数据信息要保存在哪？
+    	   1.1 保存到磁盘 
+    	       -- 不足：读写速度慢 效率低！
+    	   1.2 保存内存
+    	       -- 不足：数据不安全
+    	   1.3 最终的解决方案： 磁盘 + 内存
+    	   
+    	2. 内存中的元数据和磁盘中的元数据如何进行同步。（元数据的维护策略）
+    	      当我们对元数据进行操作的时候，首先在内存进行合并，其次还要把相关操作记录追加到edits编辑日志文件中，在满足一定条件下，将edits文件中的记录合并到元数据信息文件中 fsimage   
+              
+    	3. 谁负责对NN的元数据信息进行合并？
+    	      2NN主要负责对NN的元数据精心合并，当满足一定条件的下，2NN会检测本地时间，每隔一个小时会主动对NN的edits文件和fsimage文件进行一次合并。合并的时候，首先会通知NN,这时候NN就会停止对正在使用的edits文件的追加，同时会新建一个新的edits编辑日志文件，保证NN的正常工作。接下来 2NN会把NN本地的fsimage文件和edits编辑日志拉取2NN的本地，在内存中对二者进行合并，最后产生最新fsimage文件。把最新的fsimage文件再发送给NN的本地。注意还有一个情况，当NN的edits文件中的操作次数累计达到100万次，即便还没到1小时，2NN（每隔60秒会检测一次NN方的edits文件的操作次数）也会进行合并。
+    	    2NN 也会自己把最新的fsimage文件备份一份。
+    
+
+<img src=".\picture\nn和2nn的工作机制.png" style="zoom: 25%;" />
+
+1）第一阶段：NameNode启动
+
+（1）第一次启动NameNode格式化后，创建Fsimage和Edits文件。如果不是第一次启动，直接加载编辑日志和镜像文件到内存。
+
+（2）客户端对元数据进行增删改的请求。
+
+（3）NameNode记录操作日志，更新滚动日志。
+
+（4）NameNode在内存中对元数据进行增删改。
+
+2）第二阶段：Secondary NameNode工作
+
+（1）Secondary NameNode询问NameNode是否需要CheckPoint。直接带回NameNode是否检查结果。
+
+（2）Secondary NameNode请求执行CheckPoint。
+
+（3）NameNode滚动正在写的Edits日志。
+
+（4）将滚动前的编辑日志和镜像文件拷贝到Secondary NameNode。
+
+（5）Secondary NameNode加载编辑日志和镜像文件到内存，并合并。
+
+（6）生成新的镜像文件fsimage.chkpoint。
+
+（7）拷贝fsimage.chkpoint到NameNode。
+
+（8）NameNode将fsimage.chkpoint重新命名成fsimage。
+
+**NN和2NN工作机制详解：**
+
+Fsimage：NameNode内存中元数据序列化后形成的文件。
+
+Edits：记录客户端更新元数据信息的每一步操作（可通过Edits运算出元数据）。
+
+NameNode启动时，先滚动Edits并生成一个空的edits.inprogress，然后加载Edits和Fsimage到内存中，此时NameNode内存就持有最新的元数据信息。Client开始对NameNode发送元数据的增删改的请求，这些请求的操作首先会被记录到edits.inprogress中（查询元数据的操作不会被记录在Edits中，因为查询操作不会更改元数据信息），如果此时NameNode挂掉，重启后会从Edits中读取元数据的信息。然后，NameNode会在内存中执行元数据的增删改的操作。
+
+由于Edits中记录的操作会越来越多，Edits文件会越来越大，导致NameNode在启动加载Edits时会很慢，所以需要对Edits和Fsimage进行合并（所谓合并，就是将Edits和Fsimage加载到内存中，照着Edits中的操作一步步执行，最终形成新的Fsimage）。SecondaryNameNode的作用就是帮助NameNode进行Edits和Fsimage的合并工作。
+
+SecondaryNameNode首先会询问NameNode是否需要CheckPoint（触发CheckPoint需要满足两个条件中的任意一个，定时时间到和Edits中数据写满了）。直接带回NameNode是否检查结果。SecondaryNameNode执行CheckPoint操作，首先会让NameNode滚动Edits并生成一个空的edits.inprogress，滚动Edits的目的是给Edits打个标记，以后所有新的操作都写入edits.inprogress，其他未合并的Edits和Fsimage会拷贝到SecondaryNameNode的本地，然后将拷贝的Edits和Fsimage加载到内存中进行合并，生成fsimage.chkpoint，然后将fsimage.chkpoint拷贝给NameNode，重命名为Fsimage后替换掉原来的Fsimage。NameNode在启动时就只需要加载之前未合并的Edits和Fsimage即可，因为合并过的Edits中的元数据信息已经被记录在Fsimage中。
+
+### 5.2 Fsimage和Edits解析
+
+<img src="E:\learning\04_java\01_笔记\BigData\hadoop\picture\Fsimage和Edits概念.png" style="zoom:22%;" />
+
+**1）oiv查看Fsimage文件**
+
+（1）查看oiv和oev命令
+
+```shell
+hdfs
+**oiv**    apply the offline fsimage viewer to an fsimage
+**oev**    apply the offline edits viewer to an edits file
+```
+
+（2）基本语法
+
+`hdfs oiv -p 文件类型 -i镜像文件 -o 转换后文件输出路径`
+
+（3）案例实操
+
+```shell
+pwd
+/opt/module/hadoop-3.1.3/data/dfs/name/current
+hdfs oiv -p XML -i fsimage_0000000000000000025 -o /opt/module/hadoop-3.1.3/fsimage.xml
+cat /opt/module/hadoop-3.1.3/fsimage.xml
+cd /opt/module/hadoop-3.1.3
+sz fsimage.xml # 下载到本地
+```
+
+将显示的xml文件内容拷贝到IDEA中创建的xml文件中，并格式化。部分显示结果如下。
+
+```xml
+<inode>
+	<id>16386</id>
+	<type>DIRECTORY</type>
+	<name>user</name>
+	<mtime>1512722284477</mtime>
+	<permission>xu1an:supergroup:rwxr-xr-x</permission>
+	<nsquota>-1</nsquota>
+	<dsquota>-1</dsquota>
+</inode>
+<inode>
+	<id>16387</id>
+	<type>DIRECTORY</type>
+	<name>xu1an</name>
+	<mtime>1512790549080</mtime>
+	<permission>xu1an:supergroup:rwxr-xr-x</permission>
+	<nsquota>-1</nsquota>
+	<dsquota>-1</dsquota>
+</inode>
+<inode>
+	<id>16389</id>
+	<type>FILE</type>
+	<name>wc.input</name>
+	<replication>3</replication>
+	<mtime>1512722322219</mtime>
+	<atime>1512722321610</atime>
+	<perferredBlockSize>134217728</perferredBlockSize>
+	<permission>xu1an:supergroup:rw-r--r--</permission>
+	<blocks>
+		<block>
+			<id>1073741825</id>
+			<genstamp>1001</genstamp>
+			<numBytes>59</numBytes>
+		</block>
+	</blocks>
+</inode >
+```
+
+思考：可以看出，Fsimage中没有记录块所对应DataNode，为什么？
+
+在集群启动后，要求DataNode上报数据块信息，并间隔一段时间后再次上报。
+
+**2）oev查看Edits文件**
+
+（1）基本语法
+
+`hdfs oev -p 文件类型 -i编辑日志 -o 转换后文件输出路径`
+
+（2）案例实操
+
+```
+hdfs oev -p XML -i edits_0000000000000000012-0000000000000000013 -o /opt/module/hadoop-3.1.3/edits.xml
+cat /opt/module/hadoop-3.1.3/edits.xml
+```
+
+将显示的xml文件内容拷贝到Eclipse中创建的xml文件中，并格式化。显示结果如下。
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<EDITS>
+	<EDITS_VERSION>-63</EDITS_VERSION>
+	<RECORD>
+		<OPCODE>OP_START_LOG_SEGMENT</OPCODE>
+		<DATA>
+			<TXID>129</TXID>
+		</DATA>
+	</RECORD>
+	<RECORD>
+		<OPCODE>OP_ADD</OPCODE>
+		<DATA>
+			<TXID>130</TXID>
+			<LENGTH>0</LENGTH>
+			<INODEID>16407</INODEID>
+			<PATH>/hello7.txt</PATH>
+			<REPLICATION>2</REPLICATION>
+			<MTIME>1512943607866</MTIME>
+			<ATIME>1512943607866</ATIME>
+			<BLOCKSIZE>134217728</BLOCKSIZE>
+			<CLIENT_NAME>DFSClient_NONMAPREDUCE_-1544295051_1</CLIENT_NAME>
+			<CLIENT_MACHINE>192.168.1.5</CLIENT_MACHINE>
+			<OVERWRITE>true</OVERWRITE>
+			<PERMISSION_STATUS>
+				<USERNAME>atguigu</USERNAME>
+				<GROUPNAME>supergroup</GROUPNAME>
+				<MODE>420</MODE>
+			</PERMISSION_STATUS>
+			<RPC_CLIENTID>908eafd4-9aec-4288-96f1-e8011d181561</RPC_CLIENTID>
+			<RPC_CALLID>0</RPC_CALLID>
+		</DATA>
+	</RECORD>
+	<RECORD>
+		<OPCODE>OP_ALLOCATE_BLOCK_ID</OPCODE>
+		<DATA>
+			<TXID>131</TXID>
+			<BLOCK_ID>1073741839</BLOCK_ID>
+		</DATA>
+	</RECORD>
+	<RECORD>
+		<OPCODE>OP_SET_GENSTAMP_V2</OPCODE>
+		<DATA>
+			<TXID>132</TXID>
+			<GENSTAMPV2>1016</GENSTAMPV2>
+		</DATA>
+	</RECORD>
+	<RECORD>
+		<OPCODE>OP_ADD_BLOCK</OPCODE>
+		<DATA>
+			<TXID>133</TXID>
+			<PATH>/hello7.txt</PATH>
+			<BLOCK>
+				<BLOCK_ID>1073741839</BLOCK_ID>
+				<NUM_BYTES>0</NUM_BYTES>
+				<GENSTAMP>1016</GENSTAMP>
+			</BLOCK>
+			<RPC_CLIENTID></RPC_CLIENTID>
+			<RPC_CALLID>-2</RPC_CALLID>
+		</DATA>
+	</RECORD>
+	<RECORD>
+		<OPCODE>OP_CLOSE</OPCODE>
+		<DATA>
+			<TXID>134</TXID>
+			<LENGTH>0</LENGTH>
+			<INODEID>0</INODEID>
+			<PATH>/hello7.txt</PATH>
+			<REPLICATION>2</REPLICATION>
+			<MTIME>1512943608761</MTIME>
+			<ATIME>1512943607866</ATIME>
+			<BLOCKSIZE>134217728</BLOCKSIZE>
+			<CLIENT_NAME></CLIENT_NAME>
+			<CLIENT_MACHINE></CLIENT_MACHINE>
+			<OVERWRITE>false</OVERWRITE>
+			<BLOCK>
+				<BLOCK_ID>1073741839</BLOCK_ID>
+				<NUM_BYTES>25</NUM_BYTES>
+				<GENSTAMP>1016</GENSTAMP>
+			</BLOCK>
+			<PERMISSION_STATUS>
+				<USERNAME>atguigu</USERNAME>
+				<GROUPNAME>supergroup</GROUPNAME>
+				<MODE>420</MODE>
+			</PERMISSION_STATUS>
+		</DATA>
+	</RECORD>
+</EDITS >
+```
+
+思考：NameNode如何确定下次开机启动的时候合并哪些Edits？
+
+### 5.3 CheckPoint时间设置
+
+1）通常情况下，SecondaryNameNode每隔一小时执行一次。
+
+ [hdfs-default.xml]
+
+```xml
+<property>
+  <name>dfs.namenode.checkpoint.period</name>
+  <value>3600s</value>
+</property>
+```
+
+2）一分钟检查一次操作次数，当操作次数达到1百万时，SecondaryNameNode执行一次。
+
+```xml
+<property>
+  <name>dfs.namenode.checkpoint.txns</name>
+  <value>1000000</value>
+<description>操作动作次数</description>
+</property>
+
+<property>
+  <name>dfs.namenode.checkpoint.check.period</name>
+  <value>60s</value>
+<description> 1分钟检查一次操作次数</description>
+</property >
+```
+
+### 5.4 NameNode故障处理（扩展）
+
+NameNode故障后，可以采用如下两种方法恢复数据。
+
+**1）将SecondaryNameNode中数据拷贝到NameNode存储数据的目录；**
+
+（1）kill -9 NameNode进程
+
+（2）删除NameNode存储的数据（/opt/module/hadoop-3.1.3/data/tmp/dfs/name）
+
+```
+rm -rf /opt/module/hadoop-3.1.3/data/dfs/name/*
+```
+
+（3）拷贝SecondaryNameNode中数据到原NameNode存储数据目录
+
+```
+scp -r atguigu@hadoop104:/opt/module/hadoop-3.1.3/data/dfs/namesecondary/* ./name/
+```
+
+（4）重新启动NameNode
+
+```
+hdfs --daemon start namenode
+```
+
+**2）使用-importCheckpoint选项启动NameNode守护进程，从而将SecondaryNameNode中数据拷贝到NameNode目录中。**
+
+（1）修改hdfs-site.xml中的
+
+```xml
+<property>
+    <name>dfs.namenode.checkpoint.period</name>
+    <value>120</value>
+</property>
+
+<property>
+    <name>dfs.namenode.name.dir</name>
+    <value>/opt/module/hadoop-3.1.3/data/dfs/name</value>
+</property>
+```
+
+（2）kill -9 NameNode进程
+
+（3）删除NameNode存储的数据（/opt/module/hadoop-3.1.3/data/dfs/name）
+
+```shell
+rm -rf /opt/module/hadoop-3.1.3/data/dfs/name/*
+```
+
+（4）如果SecondaryNameNode不和NameNode在一个主机节点上，需要将SecondaryNameNode存储数据的目录拷贝到NameNode存储数据的平级目录，并删除in_use.lock文件
+
+```shell
+ scp -r atguigu@hadoop104:/opt/module/hadoop-3.1.3/data/dfs/namesecondary ./
+
+ rm -rf in_use.lock
+
+ pwd
+/opt/module/hadoop-3.1.3/data/dfs
+
+ls
+data  name  namesecondary
+
+```
+
+（5）导入检查点数据（等待一会ctrl+c结束掉）
+
+```shell
+bin/hdfs namenode -importCheckpoint
+```
+
+（6）启动NameNode
+
+```shell
+hdfs --daemon start namenode
+```
+
+### 5.5 集群安全模式
+
+**1、NameNode启动**
+
+NameNode启动时，首先将镜像文件（Fsimage）载入内存，并执行编辑日志（Edits）中的各项操作。一旦在内存中成功建立文件系统元数据的映像，则创建一个空的编辑日志。此时，NameNode开始监听DataNode请求。这个过程期间，NameNode一直运行在安全模式，即NameNode的文件系统对于客户端来说是只读的。
+
+**2、DataNode启动**
+
+系统中的数据块的位置并不是由NameNode维护的，而是以块列表的形式存储在DataNode中。在系统的正常操作期间，NameNode会在内存中保留所有块位置的映射信息。在安全模式下，各个DataNode会向NameNode发送最新的块列表信息，NameNode了解到足够多的块位置信息之后，即可高效运行文件系统。
+
+**3、安全模式退出判断**
+
+如果满足“最小副本条件”，NameNode会在30秒钟之后就退出安全模式。所谓的最小副本条件指的是在整个文件系统中99.9%的块满足最小副本级别（默认值：dfs.replication.min=1）。在启动一个刚刚格式化的HDFS集群时，因为系统中还没有任何块，所以NameNode不会进入安全模式。
+
+1）基本语法
+
+集群处于安全模式，不能执行重要操作（写操作）。集群启动完成后，自动退出安全模式。
+
+```
+（1）bin/hdfs dfsadmin -safemode get		（功能描述：查看安全模式状态）
+（2）bin/hdfs dfsadmin -safemode enter  	（功能描述：进入安全模式状态）
+（3）bin/hdfs dfsadmin -safemode leave	（功能描述：离开安全模式状态）
+（4）bin/hdfs dfsadmin -safemode wait	（功能描述：等待安全模式状态）
+```
+
+2）案例
+
+模拟等待安全模式
+
+3）查看当前模式
+
+```
+hdfs dfsadmin -safemode get
+Safe mode is OFF
+```
+
+4）先进入安全模式
+
+```
+bin/hdfs dfsadmin -safemode enter
+```
+
+5）创建并执行下面的脚本
+
+在/opt/module/hadoop-3.1.3路径上，编辑一个脚本safemode.sh
+
+```
+touch safemode.sh
+vim safemode.sh
+
+#!/bin/bash
+hdfs dfsadmin -safemode wait
+hdfs dfs -put /opt/module/hadoop-3.1.3/README.txt /
+
+chmod 777 safemode.sh
+
+./safemode.sh 
+```
+
+6）再打开一个窗口，执行
+
+7）观察
+
+8）再观察上一个窗口
+
+Safe mode is OFF
+
+9）HDFS集群上已经有上传的数据了。 
+
+### 5.6 NameNode多目录配置
+
+1）NameNode的本地目录可以配置成多个，且每个目录存放内容相同，增加了可靠性
+
+2）具体配置如下
+
+ （1）在hdfs-site.xml文件中添加如下内容
+
+```
+<property>
+<name>dfs.namenode.name.dir</name>
+<value>file://${hadoop.tmp.dir}/dfs/name1,file://${hadoop.tmp.dir}/dfs/name2</value>
+</property>
+```
+
+（2）停止集群，删除三台节点的data和logs中所有数据。
+
+```
+[@hadoop102 hadoop-3.1.3]$ rm -rf data/ logs/
+[@hadoop103 hadoop-3.1.3]$ rm -rf data/ logs/
+[@hadoop104 hadoop-3.1.3]$ rm -rf data/ logs/
+```
+
+（3）格式化集群并启动。
+
+```
+[@hadoop102 hadoop-3.1.3]$ bin/hdfs namenode –format
+[@hadoop102 hadoop-3.1.3]$ sbin/start-dfs.sh
+```
+
+（4）查看结果
+
+```
+[@hadoop102 dfs]$ ll
+总用量 12
+drwx------. 3 atguigu atguigu 4096 12月 11 08:03 data
+drwxrwxr-x. 3 atguigu atguigu 4096 12月 11 08:03 name1
+drwxrwxr-x. 3 atguigu atguigu 4096 12月 11 08:03 name2
+```
+
+---
+
+##  6 DataNode
+
+### 6.1 DataNode工作机制
+
+<img src=".\picture\DataNode工作机制.png" style="zoom: 25%;" />
+
+（1）一个数据块在DataNode上以文件形式存储在磁盘上，包括两个文件，一个是数据本身，一个是元数据包括数据块的长度，块数据的校验和，以及时间戳。
+
+（2）DataNode启动后向NameNode注册，通过后，周期性（1小时）的向NameNode上报所有的块信息。
+
+（3）心跳是每3秒一次，心跳返回结果带有NameNode给该DataNode的命令如复制块数据到另一台机器，或删除某个数据块。如果超过10分钟没有收到某个DataNode的心跳，则认为该节点不可用。
+
+（4）集群运行中可以安全加入和退出一些机器。
+
+### 6.2 数据完整性 
+
+思考：如果电脑磁盘里面存储的数据是控制高铁信号灯的红灯信号（1）和绿灯信号（0），但是存储该数据的磁盘坏了，一直显示是绿灯，是否很危险？同理DataNode节点上的数据损坏了，却没有发现，是否也很危险，那么如何解决呢？
+
+如下是DataNode节点保证数据完整性的方法。
+
+（1）当DataNode读取Block的时候，它会计算CheckSum。
+
+（2）如果计算后的CheckSum，与Block创建时值不一样，说明Block已经损坏。
+
+（3）Client读取其他DataNode上的Block。
+
+（4）常见的校验算法 crc（32），md5（128），sha1（160）
+
+（5）DataNode在其文件创建后周期验证CheckSum。
+
+<img src="E:\learning\04_java\01_笔记\BigData\hadoop\picture\数据完整性.png" style="zoom:22%;" />
+
+需要注意的是hdfs-site.xml 配置文件中的heartbeat.recheck.interval的单位为毫秒，dfs.heartbeat.interval的单位为秒
+
+```xml
+<property>
+    <name>dfs.namenode.heartbeat.recheck-interval</name>
+    <value>300000</value>
+</property>
+<property>
+    <name>dfs.heartbeat.interval</name>
+    <value>3</value>
+</property>
+```
+
+### 6.3 掉线时限参数设置
