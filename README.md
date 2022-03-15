@@ -7,4 +7,8 @@
   [hadoop集群搭建](./hadoop/hadoop.md)
 
   [HDFS分布式文件系统](./hadoop/hdfs.md)
+  
+  [MapReduce和Yarn](./hadoop/MapReduce&Yarn.md)
+  
+  [优化&新特性&HA](./)
 
