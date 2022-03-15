@@ -664,7 +664,7 @@ Hadoop配置文件分两类：默认配置文件和自定义配置文件，只�
 配置`core-site.xml`
 
 ```shell
-cd cd $HADOOP_HOME/etc/hadoop
+cd $HADOOP_HOME/etc/hadoop
 vim core-site.xml
 ```
 
@@ -686,7 +686,7 @@ vim core-site.xml
         <value>/opt/module/hadoop-3.1.3/data</value>
 </property>
 
-<!-- 配置HDFS网页登录使用的静态用户为atguigu -->
+<!-- 配置HDFS网页登录使用的静态用户为xu1an -->
     <property>
         <name>hadoop.http.staticuser.user</name>
         <value>xu1an</value>

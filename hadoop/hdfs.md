@@ -672,7 +672,7 @@ public void testListStatus() throws IOException, InterruptedException, URISyntax
     	3. 谁负责对NN的元数据信息进行合并？
     	      2NN主要负责对NN的元数据精心合并，当满足一定条件的下，2NN会检测本地时间，每隔一个小时会主动对NN的edits文件和fsimage文件进行一次合并。合并的时候，首先会通知NN,这时候NN就会停止对正在使用的edits文件的追加，同时会新建一个新的edits编辑日志文件，保证NN的正常工作。接下来 2NN会把NN本地的fsimage文件和edits编辑日志拉取2NN的本地，在内存中对二者进行合并，最后产生最新fsimage文件。把最新的fsimage文件再发送给NN的本地。注意还有一个情况，当NN的edits文件中的操作次数累计达到100万次，即便还没到1小时，2NN（每隔60秒会检测一次NN方的edits文件的操作次数）也会进行合并。
     	    2NN 也会自己把最新的fsimage文件备份一份。
-    
+
 
 <img src=".\picture\nn和2nn的工作机制.png" style="zoom: 25%;" />
 
@@ -1145,6 +1145,10 @@ drwxrwxr-x. 3 atguigu atguigu 4096 12月 11 08:03 name2
 
 <img src="E:\learning\04_java\01_笔记\BigData\hadoop\picture\数据完整性.png" style="zoom:22%;" />
 
+### 6.3 掉线时限参数设置
+
+![](E:\learning\04_java\01_笔记\BigData\hadoop\picture\掉线时限参数设置.png)
+
 需要注意的是hdfs-site.xml 配置文件中的heartbeat.recheck.interval的单位为毫秒，dfs.heartbeat.interval的单位为秒
 
 ```xml
@@ -1158,4 +1162,205 @@ drwxrwxr-x. 3 atguigu atguigu 4096 12月 11 08:03 name2
 </property>
 ```
 
-### 6.3 掉线时限参数设置
+### 6.4 服役新数据节点
+
+1）需求
+
+随着公司业务的增长，数据量越来越大，原有的数据节点的容量已经不能满足存储数据的需求，需要在原有集群基础上动态添加新的数据节点。
+
+2）环境准备
+
+（1）在hadoop104主机上再克隆一台hadoop105主机
+
+（2）修改IP地址和主机名称
+
+（3）删除原来HDFS文件系统留存的文件（/opt/module/hadoop-3.1.3/data和logs）如果没有删掉，nn就会认为104和105是同一台机器
+
+（4）source一下配置文件
+
+```shell
+ source /etc/profile
+```
+
+3）服役新节点具体步骤
+
+（1）直接启动DataNode，即可关联到集群
+
+```shell
+hdfs --daemon start datanode
+yarn --daemon start nodemanager
+```
+
+（2）在hadoop105上上传文件
+
+```
+hadoop fs -put /opt/module/hadoop-3.1.3/LICENSE.txt 
+```
+
+（3）如果数据不均衡，可以用命令实现集群的再平衡
+
+```
+ ./start-balancer.sh
+starting balancer, logging to /opt/module/hadoop-3.1.3/logs/hadoop-atguigu-balancer-hadoop102.out
+Time Stamp               Iteration#  Bytes Already Moved  Bytes Left To Move  Bytes Being Moved
+```
+
+### 6.5 退役旧数据节点
+
+#### 6.5.1 添加白名单和黑名单
+
+白名单和黑名单是hadoop管理集群主机的一种机制。
+
+添加到白名单的主机节点，都允许访问NameNode，不在白名单的主机节点，都会被退出。添加到黑名单的主机节点，不允许访问NameNode，会在数据迁移后退出。
+
+实际情况下，白名单用于确定允许访问NameNode的DataNode节点，内容配置一般与workers文件内容一致。 黑名单用于在集群运行过程中退役DataNode节点。
+
+配置白名单和黑名单的具体步骤如下：
+
+1）在NameNode节点的/opt/module/hadoop-3.1.3/etc/hadoop目录下分别创建whitelist 和blacklist文件
+
+```shell
+pwd
+/opt/module/hadoop-3.1.3/etc/hadoop
+touch whitelist
+touch blacklist
+```
+
+在whitelist中添加如下主机名称,假如集群正常工作的节点为102 103 104 105
+
+```
+hadoop102
+hadoop103
+hadoop104
+hadoop105
+```
+
+2）在hdfs-site.xml配置文件中增加dfs.hosts和 dfs.hosts.exclude配置参数
+
+```xml
+<!-- 白名单 -->
+<property>
+<name>dfs.hosts</name>
+<value>/opt/module/hadoop-3.1.3/etc/hadoop/whitelist</value>
+</property>
+<!-- 黑名单 -->
+<property>
+<name>dfs.hosts.exclude</name>
+<value>/opt/module/hadoop-3.1.3/etc/hadoop/blacklist</value>
+</property>
+```
+
+3）分发配置文件whitelist，blacklist，hdfs-site.xml (注意：105节点也要发一份)
+
+```shell
+my_rsync hadoop/ 
+rsync -av hadoop/ xu1an@hadoop105:/opt/module/hadoop-3.1.3/etc/hadoop/
+```
+
+4）重新启动集群(注意：105节点没有添加到workers，因此要单独起停)
+
+```shell
+[hadoop102 hadoop-3.1.3]$ stop-dfs.sh
+[hadoop102 hadoop-3.1.3]$ start-dfs.sh
+[hadoop105 hadoop-3.1.3]$ hdfs –daemon start datanode
+```
+
+5）在web浏览器上查看目前正常工作的DN节点
+
+#### 6.5.2 黑名单退役
+
+1）编辑/opt/module/hadoop-3.1.3/etc/hadoop目录下的blacklist文件
+
+```shell
+[@hadoop102 hadoop] vim blacklist
+```
+
+添加如下主机名称（要退役的节点）
+
+```
+hadoop105
+```
+
+2）分发blacklist到所有节点
+
+```shell
+[@hadoop102 etc]$ my_rsync hadoop/ 
+[@hadoop102 etc]$ rsync -av hadoop/ atguigu@hadoop105:/opt/module/hadoop-3.1.3/etc/hadoop/
+```
+
+3）刷新NameNode、刷新ResourceManager
+
+```shell
+[@hadoop102 hadoop-3.1.3]$ hdfs dfsadmin -refreshNodes
+Refresh nodes successful
+
+[@hadoop102 hadoop-3.1.3]$ yarn rmadmin -refreshNodes
+17/06/24 14:55:56 INFO client.RMProxy: Connecting to ResourceManager at hadoop103/192.168.1.103:8033
+```
+
+4）检查Web浏览器，退役节点的状态为decommission in progress（退役中），说明数据节点正在复制块到其他节点
+
+5）等待退役节点状态为decommissioned（所有块已经复制完成），停止该节点及节点资源管理器。注意：如果副本数是3，服役的节点小于等于3，是不能退役成功的，需要修改副本数后才能退役
+
+```shell
+[@hadoop105 hadoop-3.1.3]$ hdfs --daemon stop datanode
+```
+
+```shell
+[@hadoop105 hadoop-3.1.3]$ yarn --daemon stop nodemanager
+```
+
+6）如果数据不均衡，可以用命令实现集群的再平衡
+
+```shell
+[@hadoop102 hadoop-3.1.3]$ sbin/start-balancer.sh 
+starting balancer, logging to /opt/module/hadoop-3.1.3/logs/hadoop-atguigu-balancer-hadoop102.out
+Time Stamp               Iteration#  Bytes Already Moved  Bytes Left To Move  Bytes Being Moved
+```
+
+注意：不允许白名单和黑名单中同时出现同一个主机名称，既然使用了黑名单blacklist成功退役了hadoop105节点，因此要将白名单whitelist里面的hadoop105去掉。
+
+白名单退役编辑whitelist
+
+```
+hadoop102
+hadoop103
+hadoop104
+```
+
+## 6.6 DataNode多目录配置
+
+1）DataNode可以配置成多个目录，**每个目录存储的数据不一样**。即：数据不是副本
+
+2）具体配置如下
+
+（1）在hdfs-site.xml文件中添加如下内容
+
+```xml
+<property>
+        <name>dfs.datanode.data.dir</name>
+<value>file://${hadoop.tmp.dir}/dfs/data1,file://${hadoop.tmp.dir}/dfs/data2</value>
+</property>
+```
+
+（2）停止集群，删除三台节点的data和logs中所有数据。
+
+```shell
+[@hadoop102 hadoop-3.1.3]$ rm -rf data/ logs/
+[@hadoop103 hadoop-3.1.3]$ rm -rf data/ logs/
+[@hadoop104 hadoop-3.1.3]$ rm -rf data/ logs/
+```
+
+（3）格式化集群并启动。
+
+```shell
+[@hadoop102 hadoop-3.1.3]$ bin/hdfs namenode –format
+[@hadoop102 hadoop-3.1.3]$ sbin/start-dfs.sh
+```
+
+（4）查看结果
+
+```shell
+[@hadoop102 dfs]$ ll
+```
+
