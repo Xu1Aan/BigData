@@ -239,3 +239,262 @@ public class WordCountMapper extends Mapper<LongWritable, Text, Text, IntWritabl
 ```
 
 （2）编写Reducer类
+
+```java
+import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Reducer;
+
+
+import java.io.IOException;
+
+/**
+ * Created with IntelliJ IDEA.
+ *
+ * @Author: Xu1Aan
+ * @Date: 2022/03/15/20:15
+ * @Description:
+ * 以WordCount案例为例：
+ * 自定义的Reducer类 需要继承Hadoop提供的Reducer 并且根据具体业务指定输入数据和输出数据的数据类型
+ *
+ * 输入数据类型
+ * KEYIN,  Map端输出的key的数据类型(Text)
+ * VALUEIN, Map端输出的value的数据类型(IntWritable)
+ * 输出数据类型
+ * KEYOUT, 输出数据key的类型 就是一个单词(Text)
+ * VALUEOUT 输出数据value的类型 单词出现的总次数(IntWritable)
+ */
+public class WordCountReducer extends Reducer<Text, IntWritable, Text, IntWritable> {
+
+    private Text outKey = new Text();
+    private IntWritable outValue = new IntWritable();
+
+    /**
+     * Reduce阶段的核心业务处理方法， 一组相同的key的values会调用一次reduce方法
+     * @param key
+     * @param values
+     * @param context
+     * @throws IOException
+     * @throws InterruptedException
+     */
+    @Override
+    protected void reduce(Text key, Iterable<IntWritable> values, Reducer<Text, IntWritable, Text, IntWritable>.Context context) throws IOException, InterruptedException {
+        int totalCount = 0;
+        // 遍历values
+        for (IntWritable value : values) {
+            //对value进行累加 输出结果
+            totalCount += value.get();
+        }
+        //封装key和value
+        outKey.set(key);
+        outValue.set(totalCount);
+        context.write(outKey,outValue);
+    }
+}
+```
+
+（3）编写Driver驱动类
+
+```java
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+
+import java.io.IOException;
+
+/**
+ * Created with IntelliJ IDEA.
+ *
+ * @Author: Xu1Aan
+ * @Date: 2022/03/15/20:36
+ * @Description:
+ * MR程序的驱动类，主要用于提交MR任务
+ */
+public class WordCountDriver {
+    public static void main(String[] args) throws IOException, InterruptedException, ClassNotFoundException {
+        //声明配置对象
+        Configuration conf = new Configuration();
+        //声明Job对象
+        Job job = Job.getInstance(conf);
+        //指定当前Job的驱动类
+        job.setJarByClass(WordCountDriver.class);
+        //指定当前Job的Mapper和Reducer
+        job.setMapperClass(WordCountMapper.class);
+        job.setReducerClass(WordCountReducer.class);
+        //指定Map端输出数据key的类型和输出数据value的类型
+        job.setMapOutputKeyClass(Text.class);
+        job.setMapOutputValueClass(IntWritable.class);
+        //指定最终输出结果的key的类型和value的类型
+        job.setOutputKeyClass(Text.class);
+        job.setOutputValueClass(IntWritable.class);
+
+        //指定输入数据的目录 和 输出数据的目录
+        FileInputFormat.setInputPaths(job, new Path(args[0]));
+        FileOutputFormat.setOutputPath(job, new Path(args[1]));
+
+        //提交job
+        job.waitForCompletion(true);
+    }
+}
+```
+
+5）**测试**
+
+- **本地测试**
+
+  （1）需要首先配置好HADOOP_HOME变量以及Windows运行依赖
+
+  （2）在IDEA/Eclipse上运行程序
+
+- **集群测试**
+
+  （1）将程序打成jar包，然后拷贝到Hadoop集群中
+
+  步骤详情：右键->Run as->maven install。等待编译完成就会在项目的target文件夹中生成jar包。如果看不到。在项目上右键->Refresh，即可看到。修改不带依赖的jar包名称为wc.jar，并拷贝该jar包到Hadoop集群。
+
+  （2）启动Hadoop集群
+
+  （3）执行WordCount程序
+
+  ```shell
+  hadoop jar MapReduce-1.0-SNAPSHOT.jar com.xu1an.mr.WordCountDriver /wcinput /wcoutput
+  ```
+
+  
+
+## 2 Hadoop序列化
+
+### 2.1 序列化概述
+
+- **什么是序列化**
+
+  **序列化**就是把内存中的对象，转换成字节序列（或其他数据传输协议）以便于存储到磁盘（持久化）和网络传输。
+
+  **反序列化**就是将收到字节序列（或其他数据传输协议）或者是磁盘的持久化数据，转换成内存中的对象。
+
+- **为什么要序列化**
+
+  一般来说，“活的”对象只生存在内存里，关机断电就没有了。而且“活的”对象只能由本地的进程使用，不能被发送到网络上的另外一台计算机。 然而序列化可以存储“活的”对象，可以将“活的”对象发送到远程计算机。
+
+- **为什么不用Java的序列化**
+
+  Java的序列化是一个重量级序列化框架（Serializable），一个对象被序列化后，会附带很多额外的信息（各种校验信息，Header，继承体系等），不便于在网络中高效传输。所以，Hadoop自己开发了一套序列化机制（Writable）。
+
+- **Hadoop序列化特点**
+
+  **（1）紧凑** **：**高效使用存储空间。
+
+  **（2）快速：**读写数据的额外开销小。
+
+  **（3）可扩展：**随着通信协议的升级而可升级。
+
+  **（4）互操作：**支持多语言的交互。
+
+### 2.2 自定义bean对象实现序列化接口（Writable）
+
+在企业开发中往往常用的基本序列化类型不能满足所有需求，比如在Hadoop框架内部传递一个bean对象，那么该对象就需要实现序列化接口。
+
+具体实现bean对象序列化步骤如下7步。
+
+（1）必须实现Writable接口
+
+（2）反序列化时，需要反射调用空参构造函数，所以必须有空参构造
+
+```java
+public FlowBean() {
+	super();
+}
+```
+
+（3）重写序列化方法
+
+```java
+@Override
+public void write(DataOutput out) throws IOException {
+	out.writeLong(upFlow);
+	out.writeLong(downFlow);
+	out.writeLong(sumFlow);
+}
+```
+
+（4）重写反序列化方法
+
+```java
+@Override
+public void readFields(DataInput in) throws IOException {
+	upFlow = in.readLong();
+	downFlow = in.readLong();
+	sumFlow = in.readLong();
+}
+```
+
+（5）注意反序列化的顺序和序列化的顺序完全一致
+
+（6）要想把结果显示在文件中，需要重写toString()，可用”\t”分开，方便后续用。
+
+（7）如果需要将自定义的bean放在key中传输，则还需要实现Comparable接口，因为MapReduce框中的Shuffle过程要求对key必须能排序。**详见后面排序案例。**
+
+```java
+@Override
+public int compareTo(FlowBean o) {
+	// 倒序排列，从大到小
+	return this.sumFlow > o.getSumFlow() ? -1 : 1;
+}
+```
+
+### 2.3 序列化案例实操 
+
+**1）需求**
+
+统计每一个手机号耗费的总上行流量、总下行流量、总流量
+
+**2）需求分析**
+
+1. 输入数据格式
+
+   ```
+   7   13560436666  120.196.100.99  1116    954      200
+   Id    手机号码        网络ip      上行流量  下行流量  网络状态码
+   ```
+
+   期望输出数据格式
+
+   ```
+   13560436666    1116     954     2070
+    手机号码      上行流量  下行流量   总流量
+   ```
+
+2. Map阶段
+
+   （1）读取一行数据，切分字段
+
+   ```
+   7  13560436666  120.196.100.99  1116    954   200
+   ```
+
+   （2）抽取手机号、上行流量、下行流量
+
+   ```
+     13560436666   1116      954      
+      手机号码     上行流量   下行流量 
+   ```
+
+   （3）以手机号为key，bean对象为value输出，即context.write(手机号,bean);
+
+3. Reduce阶段
+
+   （1）累加上行流量和下行流量得到总流量。
+
+   ```
+   13560436666   1116  +  954   =    2070   
+   手机号码	  上行流量   下行流量     总流量 
+   ```
+
+**3）编写MapReduce程序**
+
+
+
