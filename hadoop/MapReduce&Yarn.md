@@ -496,5 +496,528 @@ public int compareTo(FlowBean o) {
 
 **3）编写MapReduce程序**
 
+（1）编写流量统计的Bean对象
 
+```java
+package com.xu1an.mr.writable;
 
+import org.apache.hadoop.io.Writable;
+
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+
+/**
+ * Created with IntelliJ IDEA.
+ *
+ * @Author: Xu1Aan
+ * @Date: 2022/03/17/20:22
+ * @Description:
+ * 流量对象（实现hadoop序列化）
+ */
+public class FlowBean implements Writable {
+
+    private Integer upFlow;
+    private Integer downFlow;
+    private Integer sumFlow;
+
+    public void setUpFlow(Integer upFlow) {
+        this.upFlow = upFlow;
+    }
+
+    public Integer getUpFlow() {
+        return upFlow;
+    }
+
+    public Integer getDownFlow() {
+        return downFlow;
+    }
+
+    public Integer getSumFlow() {
+        return sumFlow;
+    }
+
+    public void setDownFlow(Integer downFlow) {
+        this.downFlow = downFlow;
+    }
+
+    public void setSumFlow(Integer sumFlow) {
+        this.sumFlow = sumFlow;
+    }
+
+    @Override
+    public String toString() {
+        return upFlow+"\t"+downFlow+"\t"+sumFlow;
+    }
+
+    /**
+     * 序列化方法
+     * @param out
+     * @throws IOException
+     */
+    @Override
+    public void write(DataOutput out) throws IOException {
+       out.writeInt(upFlow);
+       out.writeInt(downFlow);
+       out.writeInt(sumFlow);
+    }
+
+    /**
+     *反序列化方法
+     * @param in
+     * @throws IOException
+     */
+    @Override
+    public void readFields(DataInput in) throws IOException {
+        upFlow = in.readInt();
+        downFlow = in.readInt();
+        sumFlow = in.readInt();
+    }
+}
+```
+
+（2）编写Mapper类
+
+```java
+package com.xu1an.mr.writable;
+
+import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Mapper;
+
+import java.io.IOException;
+
+/**
+ * Created with IntelliJ IDEA.
+ *
+ * @Author: Xu1Aan
+ * @Date: 2022/03/17/20:32
+ * @Description:
+ */
+public class FlowMapper extends Mapper<LongWritable, Text, Text, FlowBean> {
+
+    private Text outKey = new Text();
+    private FlowBean outValue = new FlowBean();
+
+    /**
+     * 核心业务逻辑处理
+     * @param key
+     * @param value
+     * @param context
+     * @throws IOException
+     * @throws InterruptedException
+     */
+    @Override
+    protected void map(LongWritable key, Text value, Mapper<LongWritable, Text, Text, FlowBean>.Context context) throws IOException, InterruptedException {
+        //获取当前行数据
+        String line = value.toString();
+        //切割数据
+        String[] phoneData = line.split("\t");
+
+        //当前数据： 7   13560436666  120.196.100.99  1116    954      200
+        //获取输出数据的key(手机号)
+        outKey.set(phoneData[1]);
+        //获取输出数据的value
+        int up = Integer.parseInt(phoneData[phoneData.length - 3]);
+        int down = Integer.parseInt(phoneData[phoneData.length - 2]);
+        outValue.setUpFlow(up);
+        outValue.setDownFlow(down);
+        outValue.setSumFlow(up+down);
+
+        //将数据输出
+        context.write(outKey,outValue);
+    }
+}
+```
+
+（3）编写Reducer类
+
+```java
+package com.xu1an.mr.writable;
+
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Reducer;
+
+import java.io.IOException;
+
+/**
+ * Created with IntelliJ IDEA.
+ *
+ * @Author: Xu1Aan
+ * @Date: 2022/03/17/20:32
+ * @Description:
+ */
+public class FlowReduce extends Reducer<Text, FlowBean, Text, FlowBean> {
+
+    private Text outKey = new Text();
+    private FlowBean outValue = new FlowBean();
+
+    /**
+     * 核心业务逻辑处理
+     * @param key
+     * @param values
+     * @param context
+     * @throws IOException
+     * @throws InterruptedException
+     */
+    @Override
+    protected void reduce(Text key, Iterable<FlowBean> values, Reducer<Text, FlowBean, Text, FlowBean>.Context context) throws IOException, InterruptedException {
+        //遍历一组相同key的values
+        int totalUpFlow = 0;
+        int totalDownFlow = 0;
+        int totalSumFlow = 0;
+
+        for (FlowBean value : values) {
+            totalUpFlow += value.getUpFlow();
+            totalDownFlow += value.getDownFlow();
+            totalSumFlow += value.getSumFlow();
+        }
+
+        //封装输出数据的key
+        outKey.set(key);
+        //封装输出数据的value
+        outValue.setUpFlow(totalUpFlow);
+        outValue.setDownFlow(totalDownFlow);
+        outValue.setSumFlow(totalSumFlow);
+
+        //将数据输出
+        context.write(outKey,outValue);
+    }
+}
+```
+
+（4）编写Driver驱动类
+
+```java
+package com.xu1an.mr.writable;
+
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+
+import java.io.IOException;
+
+/**
+ * Created with IntelliJ IDEA.
+ *
+ * @Author: Xu1Aan
+ * @Date: 2022/03/17/20:32
+ * @Description:
+ */
+public class FlowDriver {
+    public static void main(String[] args) throws IOException, InterruptedException, ClassNotFoundException {
+        Configuration conf = new Configuration();
+        Job job = Job.getInstance(conf);
+
+        job.setJarByClass(FlowDriver.class);
+        job.setMapperClass(FlowMapper.class);
+        job.setReducerClass(FlowReduce.class);
+
+        job.setMapOutputKeyClass(Text.class);
+        job.setMapOutputValueClass(FlowBean.class);
+
+        job.setOutputKeyClass(Text.class);
+        job.setOutputValueClass(FlowBean.class);
+
+        FileInputFormat.setInputPaths(job,new Path("E:\\learning\\04_java\\02_大数据资料\\00_hadoop\\资料\\07_测试数据\\phone_data"));
+        FileOutputFormat.setOutputPath(job,new Path("E:\\learning\\04_java\\02_大数据资料\\00_hadoop\\out\\data_1"));
+
+        job.waitForCompletion(true);
+    }
+}
+```
+
+----
+
+## 3  MapReduce框架原理
+
+### 3.1 InputFormat数据输入
+
+MapReduce的执行大概流程
+
+```
+简易版： InputFormat  -->    Mapper    -->        Reducer       --> OutputFormat
+详细版： InputFormat  -->   map sort   -->  copy sort reduce    --> OutputFormat
+```
+
+<img src=".\picture\MapReduce框架原理.png" style="zoom: 33%;" />
+
+```java
+//MapTask源码：
+if (isMapTask()) {
+    // If there are no reducers then there won't be any sort. Hence the map 
+    // phase will govern the entire attempt's progress.
+    //如果没有reducer，将不会进行排序
+    if (conf.getNumReduceTasks() == 0) {
+        mapPhase = getProgress().addPhase("map", 1.0f);
+    } else {
+        // If there are reducers then the entire attempt's progress will be 
+        // split between the map phase (67%) and the sort phase (33%).
+        // 如果有reducer，map阶段和排序阶段分配67%和33%
+        mapPhase = getProgress().addPhase("map", 0.667f);
+        sortPhase  = getProgress().addPhase("sort", 0.333f);
+    }
+}
+```
+
+```java
+//ReduceTask源码
+
+if (isMapOrReduce()) {
+	copyPhase = getProgress().addPhase("copy");//将集群中多个MapTask任务输出数据拷贝
+	sortPhase  = getProgress().addPhase("sort");//将数据进行归并排序
+	reducePhase = getProgress().addPhase("reduce");//执行reduce方法
+}
+```
+
+#### 3.1.1 切片与MapTask并行度决定机制
+
+**1）问题引出**
+
+MapTask的并行度决定Map阶段的任务处理并发度，进而影响到整个Job的处理速度。
+
+思考：1G的数据，启动8个MapTask，可以提高集群的并发处理能力。那么1K的数据，也启动8个MapTask，会提高集群性能吗？MapTask并行任务是否越多越好呢？哪些因素影响了MapTask并行度？
+
+**2）MapTask并行度决定机制**
+
+**数据块：**Block是HDFS物理上把数据分成一块一块。数据块是HDFS存储数据单位。
+
+**数据切片：**数据切片只是在逻辑上对输入进行分片，并不会在磁盘上将其切分成片进行存储。数据切片是MapReduce程序计算输入数据的单位，一个切片会对应启动一个MapTask。
+
+```
+- 切片的概念：从文件的逻辑上的进行大小的切分，一个切片多大，将来一个MapTask的处理的数据就多大。
+- 一个切片就会产生一个MapTask
+- 切片时只考虑文件本身，不考虑数据的整体集。
+- 切片大小和切块大小默认是一致的，这样设计目的为了避免将来切片读取数据的时候有跨机器的情况
+```
+
+<img src="E:\learning\04_java\01_笔记\BigData\hadoop\picture\数据切片与MapTask并行度决定机制.png" style="zoom: 50%;" />
+
+#### 3.1.2 InpuFormat的体系结构
+
+InputFormat是一个抽象类
+
+- **FileInputFormat:**  InputFormat的子实现类，实现切片逻辑。实现了getSplits() 负责切片。（FileInputFormat也是一个抽象类）
+- **TextInputFormat**:  FileInputFormat的子实现类， 实现读取数据的逻辑。createRecordReader() 返回一个RecordReader，在RecordReader中实现了读取数据的方式：按行读取。
+- **CombineTextInputFormat:**  FileInputFormat的子实现类，此类中也实现了  一套切片逻辑 （处理：适用于小文件计算场景。）
+
+#### 3.1.3 FileInputFormat切片源码解析
+
+**FileInputFormat负责切片（getSplits）**
+
+（1）源码中计算切片大小的公式
+
+​	 Math.max(minSize, Math.min(maxSize, blockSize)); 
+
+​	mapreduce.input.fileinputformat.split.minsize=1 默认值为1
+
+​	mapreduce.input.fileinputformat.split.maxsize= Long.MAXValue 默认值Long.MAXValue
+
+（2）切片大小设置
+
+​	maxsize（切片最大值）：参数如果调得比blockSize小，则会让切片变小，而且就等于配置的这个参数的值。
+
+​	minsize（切片最小值）：参数调的比blockSize大，则可以让切片变得比blockSize还大。
+
+（3）获取切片信息API
+
+```
+// 获取切片的文件名称
+String name = inputSplit.getPath().getName();
+// 根据文件类型获取切片信息
+FileSplit inputSplit = (FileSplit) context.getInputSplit();
+```
+
+**getSplits源码**
+
+```java
+// 切片源码
+public List<InputSplit> getSplits(JobContext job) throws IOException {
+    
+    //java中的计时器
+    StopWatch sw = new StopWatch().start();
+
+    // minSize = 1(默认情况) 
+    // 但是我们也可以通过改变mapreduce.input.fileinputformat.split.minsize 配置项来改变minSize大小
+    long minSize = Math.max(getFormatMinSplitSize(), getMinSplitSize(job));
+
+    // maxSize = Long类型的最大值(默认情况)
+    // 但是我们也可以通过改变mapreduce.input.fileinputformat.split.maxsize 配置项来改变maxSize大小
+    long maxSize = getMaxSplitSize(job);
+
+    // 管理最终切完片的对象的集合 最终返回的就是此集合
+    List<InputSplit> splits = new ArrayList<InputSplit>();
+
+    // 获取当前文件的详情
+    List<FileStatus> files = listStatus(job);
+
+    boolean ignoreDirs = !getInputDirRecursive(job)
+            && job.getConfiguration().getBoolean(INPUT_DIR_NONRECURSIVE_IGNORE_SUBDIRS, false);
+
+    // 遍历获取到的文件列表，一次按照文件为单位进行切片  
+    for (FileStatus file: files) {
+
+        // 如果是忽略文件以及是文件夹就不进行切片
+        if (ignoreDirs && file.isDirectory()) {
+            continue;
+        }
+
+        // 获取文件的路径
+        Path path = file.getPath();
+        // 获取文件的内容大小
+        long length = file.getLen();
+        // 如果不是空文件 继续切片
+        if (length != 0) {
+
+            // 获取文件的具体的块信息
+            BlockLocation[] blkLocations;
+            if (file instanceof LocatedFileStatus) {
+                blkLocations = ((LocatedFileStatus) file).getBlockLocations();
+            } else {
+                FileSystem fs = path.getFileSystem(job.getConfiguration());
+                blkLocations = fs.getFileBlockLocations(file, 0, length);
+            }
+
+            // 核心逻辑：判断是否要进行切片（主要判断当前文件是否是压缩文件，有一些压缩文件时不能够进行切片）
+            if (isSplitable(job, path)) {
+                // 获取HDFS中的数据块的大小
+                long blockSize = file.getBlockSize();
+                // 计算切片的大小--> 128M 默认情况下永远都是块大小
+                long splitSize = computeSplitSize(blockSize, minSize, maxSize);
+                -- 内部方法：
+                    protected long computeSplitSize(long blockSize, long minSize,long maxSize) {
+                        return Math.max(minSize, Math.min(maxSize, blockSize));
+                    }
+
+                long bytesRemaining = length;
+
+                // 判断当前的文件的剩余内容是否要继续切片 SPLIT_SLOP = 1.1
+                // 判断公式：bytesRemaining)/splitSize > SPLIT_SLOP
+                // 用文件的剩余大小/切片大小 > 1.1 才继续切片（这样做的目的是为了让我们每一个MapTask处理的数据更加均衡）
+                while (((double) bytesRemaining)/splitSize > SPLIT_SLOP) {
+                    int blkIndex = getBlockIndex(blkLocations, length-bytesRemaining);
+                    splits.add(makeSplit(path, length-bytesRemaining, splitSize,
+                            blkLocations[blkIndex].getHosts(),
+                            blkLocations[blkIndex].getCachedHosts()));
+                    bytesRemaining -= splitSize;
+                }
+
+                // 如果最后文件还有剩余且不足一个切片大小，最后再形成最后的一个切片
+                if (bytesRemaining != 0) {
+                    int blkIndex = getBlockIndex(blkLocations, length-bytesRemaining);
+                    splits.add(makeSplit(path, length-bytesRemaining, bytesRemaining,
+                            blkLocations[blkIndex].getHosts(),
+                            blkLocations[blkIndex].getCachedHosts()));
+                }
+            } else { // not splitable 不能切分
+                if (LOG.isDebugEnabled()) {
+                    // Log only if the file is big enough to be splitted
+                    if (length > Math.min(file.getBlockSize(), minSize)) {
+                        LOG.debug("File is not splittable so no parallelization "
+                                + "is possible: " + file.getPath());
+                    }
+                }
+                splits.add(makeSplit(path, 0, length, blkLocations[0].getHosts(),
+                        blkLocations[0].getCachedHosts()));
+            }
+        } else {
+            //Create empty hosts array for zero length files
+            splits.add(makeSplit(path, 0, length, new String[0]));
+        }
+    }
+    // Save the number of input files for metrics/loadgen
+    job.getConfiguration().setLong(NUM_INPUT_FILES, files.size());
+    
+    //计时器停止
+    sw.stop();
+    if (LOG.isDebugEnabled()) {
+        LOG.debug("Total # of splits generated by getSplits: " + splits.size()
+                + ", TimeTaken: " + sw.now(TimeUnit.MILLISECONDS));
+    }
+    return splits;
+}
+```
+
+#### 3.1.4 TextInputFormat读取数据
+
+**TextInputFormat实现按行读取（createRecordReader）**
+
+`TextInputFormat`实现读取数据的逻辑`createRecordReader()` 返回一个`RecordReader`，在`RecordReader`中实现了读取数据的方式：安行读取。源码如下：
+
+```java
+  @Override
+  public RecordReader<LongWritable, Text> 
+    createRecordReader(InputSplit split,
+                       TaskAttemptContext context) {
+    String delimiter = context.getConfiguration().get(
+        "textinputformat.record.delimiter");
+    byte[] recordDelimiterBytes = null;
+    if (null != delimiter)
+      recordDelimiterBytes = delimiter.getBytes(Charsets.UTF_8);
+      //按行读取
+    return new LineRecordReader(recordDelimiterBytes);
+  }
+```
+
+TextInputFormat是默认的FileInputFormat实现类。按行读取每条记录。键是存储该行在整个文件中的起始字节偏移量， LongWritable类型。值是这行的内容，不包括任何行终止符（换行符和回车符），Text类型。
+
+以下是一个示例，比如，一个分片包含了如下4条文本记录
+
+```
+Rich learning form
+Intelligent learning engine
+Learning more convenient
+From the real demand for more close to the enterprise
+```
+
+每条记录表示为以下键/值对：
+
+```
+(0,Rich learning form)
+(19,Intelligent learning engine)
+(47,Learning more convenient)
+(72,From the real demand for more close to the enterprise)
+```
+
+#### 3.1.5 CombineTextInputFormat小文件计算
+
+框架默认的TextInputFormat切片机制是对任务按文件规划切片，不管文件多小，都会是一个单独的切片，都会交给一个MapTask，这样如果有大量小文件，就会产生大量的MapTask，处理效率极其低下。
+
+**1）应用场景：**
+
+CombineTextInputFormat用于小文件过多的场景，它可以将多个小文件从逻辑上规划到一个切片中，这样，多个小文件就可以交给一个MapTask处理。
+
+**2）虚拟存储切片最大值设置**
+
+CombineTextInputFormat.setMaxInputSplitSize(job, 4194304);// 4m
+
+注意：虚拟存储切片最大值设置最好根据实际的小文件大小情况来设置具体的值。
+
+**3）切片机制**
+
+生成切片过程包括：虚拟存储过程和切片过程二部分。
+
+<img src="E:\learning\04_java\01_笔记\BigData\hadoop\picture\CombineTextInputFormat切片机制.png" style="zoom:30%;" />
+
+（1）虚拟存储过程：
+
+将输入目录下所有文件大小，依次和设置的setMaxInputSplitSize值比较，如果不大于设置的最大值，逻辑上划分一个块。如果输入文件大于设置的最大值且大于两倍，那么以最大值切割一块；当剩余数据大小超过设置的最大值且不大于最大值2倍，此时将文件均分成2个虚拟存储块（防止出现太小切片）。
+
+例如setMaxInputSplitSize值为4M，输入文件大小为8.02M，则先逻辑上分成一个4M。剩余的大小为4.02M，如果按照4M逻辑划分，就会出现0.02M的小的虚拟存储文件，所以将剩余的4.02M文件切分成（2.01M和2.01M）两个文件。
+
+（2）切片过程：
+
+​	（a）判断虚拟存储的文件大小是否大于setMaxInputSplitSize值，大于等于则单独形成一个切片。
+
+​	（b）如果不大于则跟下一个虚拟存储文件进行合并，共同形成一个切片。
+
+​	（c）测试举例：有4个小文件大小分别为1.7M、5.1M、3.4M以及6.8M这四个小文件，则虚拟存储之后形成6个文件块，大小分别为：
+
+​		1.7M，（2.55M、2.55M），3.4M以及（3.4M、3.4M）
+
+​		最终会形成3个切片，大小分别为：
+
+​		（1.7+2.55）M，（2.55+3.4）M，（3.4+3.4）M
