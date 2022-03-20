@@ -46,5 +46,5 @@
 
   预计开发技术：Hadoop、HDFS、Spark、SpringBoot、echarts、PySpark、Python、MySQL、Vue
 
-- [ ] 待续....
+- [ ] 待续...
 
