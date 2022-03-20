@@ -15,21 +15,14 @@
   - [MapReduce和Yarn](./01_Hadoop/MapReduce&Yarn.md)
 
   - [优化&新特性&HA](./01_Hadoop)
-
 - [ ] Zookeeper
-
+  - [Zookeeper](./02_Zookeeper)
 - [ ] Hive
-
 - [ ] Flume
-
 - [ ] Kaflka
-
 - [ ] HBase
-
 - [ ] Scala
-
 - [ ] Spark
-
 - [ ] Flink
 
 #### 大数据平台技术（练习）
