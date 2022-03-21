@@ -1000,7 +1000,7 @@ CombineTextInputFormat.setMaxInputSplitSize(job, 4194304);// 4m
 
 生成切片过程包括：虚拟存储过程和切片过程二部分。
 
-<img src="E:\learning\04_java\01_笔记\BigData\hadoop\picture\CombineTextInputFormat切片机制.png" style="zoom:30%;" />
+<img src=".\picture\CombineTextInputFormat切片机制.png" style="zoom:30%;" />
 
 （1）虚拟存储过程：
 
@@ -1022,9 +1022,450 @@ CombineTextInputFormat.setMaxInputSplitSize(job, 4194304);// 4m
 
 ​		（1.7+2.55）M，（2.55+3.4）M，（3.4+3.4）M
 
-### 3.2 Shuffle机制
+在`Driver`中为`job`指定`InputFormat`的实现类为`CombinTextInputFormat`
+
+```java
+//指定CombineFileInputFormat中切片的最大值
+CombineFileInputFormat.setMaxInputSplitSize(job,4194304 * 5);
+//指定InputFormat的实现，默认为FileInputFormat
+job.setInputFormatClass(CombineTextInputFormat.class);
+
+//指定输入数据的目录 和 输出数据的目录
+FileInputFormat.setInputPaths(job,new Path("E:\\learning\\04_java\\02_大数据资料\\00_hadoop\\资料\\07_测试数据\\combine"));
+FileOutputFormat.setOutputPath(job, new Path("E:\\learning\\04_java\\02_大数据资料\\00_hadoop\\out\\data_5"));
+```
+
+### 3.2 Shuffle机制 
 
 Map方法之后，Reduce方法之前的数据处理过程称之为Shuffle。
 
 ![](.\picture\shuffle机制.png)
+
+#### 3.2.1 Partition分区
+
+1、Partitioner是Hadoop的分区器对象：负责给Map阶段输出数据选择分区的功能
+
+   -  默认实现HashPartitioner类 。按照 输出的key的`hashCode值` 和 `ReduceTask的数量` 进行取余操作会得到一个数字，这个数字就只当前<k,v>所属分区的编号，分区编号在Job提交的时候就已经根据指定ReduceTask的数量定义好了。
+
+2、Hadoop默认的分区规则源码解析
+
+- 定位MapTask的map方法中 context.write(outk, outv);
+
+- 跟到write(outk, outv)中 进入到 ChainMapContextImpl类的实现中
+
+  ```java
+  public void write(KEYOUT key, VALUEOUT value) throws IOException,
+  	InterruptedException {
+  		output.write(key, value);
+  	}
+  ```
+
+-  跟到 output.write(key, value) 内部 NewOutputCollector
+
+  ```java
+  public void write(K key, V value) throws IOException, InterruptedException {
+  				collector.collect(key, value,
+  								partitioner.getPartition(key, value, partitions));
+  			}
+  ```
+
+- 重点理解 partitioner.getPartition(key, value, partitions)；
+
+- 跟进默认的分区规则实现 HashPartitioner类
+
+  ```java
+  public int getPartition(K key, V value,
+  	int numReduceTasks) {
+  	// 根据当前的key的hashCode值和ReduceTask的数量进行取余操作
+  	// 获取到的值就是当前kv所属的分区编号。
+  	return (key.hashCode() & Integer.MAX_VALUE) % numReduceTasks;
+  }
+  ```
+
+3、自定义分区器对象
+
+- 自定一个分区器类，继承Hadoop提供的Partitioner类，实现getPartition() 方法，在方法中编写自己的业务逻辑，最终给当前kv返回所属的分区编号。
+
+- 分区器使用时注意事项
+
+  - 当ReduceTask的数量设置 > 实际用到的分区数 此时会生成空的分区文件
+
+  - 当ReduceTask的数量设置 < 实际用到的分区数 此时会报错
+  - 当ReduceTask的数量设置 = 1 结果文件会输出到一个文件中，由以下源码可以论证：
+
+  ```java
+  // 获取当前ReduceTask的数量
+  partitions = jobContext.getNumReduceTasks();
+  	// 判断ReduceTask的数量 是否大于1，找指定分区器对象
+  	if (partitions > 1) {
+  		partitioner = (org.apache.hadoop.mapreduce.Partitioner<K,V>)
+  		ReflectionUtils.newInstance(jobContext.getPartitionerClass(), job);
+  		} else {
+  		// 执行默认的分区规则，最终返回一个唯一的0号分区
+  		partitioner = new org.apache.hadoop.mapreduce.Partitioner<K,V>() {
+  			@Override
+  			public int getPartition(K key, V value, int numPartitions) {
+  			return partitions - 1;
+  			}
+  		};
+  	}
+  					  
+  ```
+
+- 分区编号生成的规则：根据指定的ReduceTask的数量 从0开始，依次累加。
+
+**Partition分区案例实操**
+
+1、问题引出
+
+要求将统计结果按照条件输出到不同文件中（分区）。比如：将统计结果按照手机归属地不同省份输出到不同文件中（分区）
+
+2、默认Partitioner分区
+
+```java
+public class HashPartitioner<K, V> extends Partitioner<K, V> {
+  public int getPartition(K key, V value, int numReduceTasks) {
+    return (key.hashCode() & Integer.MAX_VALUE) % numReduceTasks;
+  }
+}
+
+```
+
+默认分区是根据key的hashCode对ReduceTasks个数取模得到的。用户没法控制哪个key存储到哪个分区。
+
+3、自定义Partitioner步骤
+
+（1）自定义类继承Partitioner，重写getPartition()方法
+
+```java
+public class CustomPartitioner extends Partitioner<Text, FlowBean> {
+ 	@Override
+	public int getPartition(Text key, FlowBean value, int numPartitions) {
+          // 控制分区代码逻辑
+    … …
+		return partition;
+	}
+}
+```
+
+（2）在Job驱动中，设置自定义Partitioner 
+
+```java
+job.setPartitionerClass(CustomPartitioner.class);
+```
+
+（3）自定义Partition后，要根据自定义Partitioner的逻辑设置相应数量的ReduceTask
+
+```java
+job.setNumReduceTasks(5);
+```
+
+4、分区总结
+
+（1）如果ReduceTask的数量> getPartition的结果数，则会多产生几个空的输出文件part-r-000xx；
+
+（2）如果1<ReduceTask的数量<getPartition的结果数，则有一部分分区数据无处安放，会Exception；
+
+（3）如果ReduceTask的数量=1，则不管MapTask端输出多少个分区文件，最终结果都交给这一个ReduceTask，最终也就只会产生一个结果文件 part-r-00000；
+
+（4）分区号必须从零开始，逐一累加。
+
+5、案例分析
+
+例如：假设自定义分区数为5，则
+
+（1）job.setNumReduceTasks(1); 会正常运行，只不过会产生一个输出文件
+
+（2）job.setNumReduceTasks(2); 会报错
+
+（3）job.setNumReduceTasks(6); 大于5，程序会正常运行，会产生空文件
+
+**代码实现**
+
+```java
+public class PhonePartitioner extends Partitioner<Text,FlowBean> {
+
+    /**
+     * 定义当前kv所属分区规则
+     * @param text
+     * @param flowBean
+     * @param numPartitions
+     * @return
+     * 136 --> 0
+     * 137 --> 1
+     * 138 --> 2
+     * 139 --> 3
+     * 其他 --> 4
+     */
+    @Override
+    public int getPartition(Text text, FlowBean flowBean, int numPartitions) {
+        int phonePartitions  = 0;
+        String phoneNum = text.toString();
+        if(phoneNum.startsWith("136")){
+            phonePartitions = 0;
+        } else if (phoneNum.startsWith("137")) {
+            phonePartitions = 1;
+        } else if (phoneNum.startsWith("138")) {
+            phonePartitions = 2;
+        } else if (phoneNum.startsWith("139")) {
+            phonePartitions = 3;
+        } else {
+            phonePartitions = 4;
+        }
+        return phonePartitions;
+    }
+}
+```
+
+在Driver中设置reduceTask数量和自定义分区对象
+
+```
+//指定ReduceTask数量为5
+job.setNumReduceTasks(5);
+//指定自定义分区对象实现
+job.setPartitionerClass(PhonePartitioner.class);
+```
+
+#### 3.2.1 WritableComparable排序
+
+**1、排序概述**
+
+排序是MapReduce框架中最重要的操作之一。
+
+MapTask和ReduceTask均会对数据按照key进行排序。该操作属于Hadoop的默认行为。任何应用程序中的数据均会被排序，而不管逻辑上是否需要。
+
+默认排序是按照**字典顺序排序**，且实现该排序的方法是**快速排序**。
+
+- 对于MapTask，它会将处理的结果暂时放到环形缓冲区中，当环形缓冲区使用率达到一定阈值后，再对缓冲区中的数据进行一次快速排序，并将这些有序数据溢写到磁盘上，而当数据处理完毕后，它会对磁盘上所有文件进行归并排序。
+
+- 对于ReduceTask，它从每个MapTask上远程拷贝相应的数据文件，如果文件大小超过一定阈值，则溢写磁盘上，否则存储在内存中。如果磁盘上文件数目达到一定阈值，则进行一次归并排序以生成一个更大文件；如果内存中文件大小或者数目超过一定阈值，则进行一次合并后将数据溢写到磁盘上。当所有数据拷贝完毕后，ReduceTask统一对内存和磁盘上的所有数据进行一次归并排序。
+
+**2、排序分类**
+
+（1）部分排序
+
+MapReduce根据输入记录的键对数据集排序。保证输出的每个文件内部有序。
+
+（2）全排序
+
+最终输出结果只有一个文件，且文件内部有序。实现方式是只设置一个ReduceTask。但该方法在处理大型文件时效率极低，因为一台机器处理所有文件，完全丧失了MapReduce所提供的并行架构。
+
+（3）辅助排序：（GroupingComparator分组）
+
+ 在Reduce端对key进行分组。应用于：在接收的key为bean对象时，想让一个或几个字段相同（全部字段比较不相同）的key进入到同一个reduce方法时，可以采用分组排序。
+
+（4）二次排序
+
+在自定义排序过程中，如果compareTo中的判断条件为两个即为二次排序。
+
+**3、Hadoop中实现比较排序**
+
+1. Hadoop 中的实现排序比较的方式
+
+   - 直接让参与比较的对象上实现WritableComparable 接口，并在该类中实现 compareTo方法，在compareTo中定义自己的比较规则。这种情况当运行的的时候Hadoop会帮助我们生成 比较器对象WritableComparator。
+   - 自定一个比较器对象需要继承Hadoop提供的WritableComparator类，重写该类compare() 方法，在该方法中定义比较规则，注意在自定义的比较器对象中通过调用父类的super方法将自定义的比较器对象和要参与比较的对象进行关联。最后再Driver类中指定自定义的比较器对象。
+
+2. Hadoop中获取比较器对象的规则是什么？（通过源码解析分析...）
+
+   - 定位到 MapTask 类中的init() 方法
+
+     ```java
+     // 获取比较器对象
+     comparator = job.getOutputKeyComparator();
+     ```
+
+   - 定位 JobConf 类中  getOutputKeyComparator() 
+
+     ```java
+     // job提交的时候 获取当前MR程序输出数据key的比较器对象
+     public RawComparator getOutputKeyComparator() {
+         Class<? extends RawComparator> theClass = getClass(
+                 JobContext.KEY_COMPARATOR, null, RawComparator.class);
+         if (theClass != null){
+             // 如果通过配置获取到指定的比较器对象的class 直接通过反射示例化
+             return ReflectionUtils.newInstance(theClass, this);
+         }
+     
+         // 如果通过配置没获取到指定的比较器对象，接着判断 
+         // 当前参与比较的对象是否实现了WritableComparable接口
+         return WritableComparator.get(getMapOutputKeyClass()
+                 .asSubclass(WritableComparable.class), this);
+     }
+     
+     // get()方法就是实现获取比较器对象的逻辑  
+     public static WritableComparator get(
+             Class<? extends WritableComparable> c, Configuration conf) {
+     
+         // 根据当前传入的class文件到 comparators的Map中获取比较器对象
+         // 这种情况是 当前参与比较的对象的类型是Hadoop自身的数据类型
+         WritableComparator comparator = comparators.get(c);
+     
+         if (comparator == null) {
+             // 考虑到一些极端情况，可能发生GC垃圾回收，导致比较器没了
+             // 为了万无一失 再次让类加载一遍
+             forceInit(c);
+             // 重新加载后再次获取
+             comparator = comparators.get(c);
+             // 此时还没获取到，那就说明当前参与比较的对象的不是Hadoop自身的数据类型
+             if (comparator == null) {
+                 // Hadoop 会给当前参与比较的对象生成比较器对象
+                 comparator = new WritableComparator(c, conf, true);
+             }
+         }
+         // Newly passed Configuration objects should be used.
+         ReflectionUtils.setConf(comparator, conf);
+         return comparator;
+     }
+     ```
+
+3.  Hadoop自身的数据类型是如何拥有比较器对象
+
+   - 以Text为例：打来Text的源码
+
+     1. 当前Text实现了WritableComparable接口
+
+     2. 在该类中 定义了自己的比较器对象
+
+        ```java
+        public static class Comparator extends WritableComparator {
+        		public Comparator() {
+        			super(Text.class);
+        		}
+        ```
+
+     3. 该类中还包含一个静态代码快
+
+        ```java
+         static {
+        		// register this comparator
+        		WritableComparator.define(Text.class, new Comparator());
+        	}
+        ```
+
+     4. Text类它的比较器对象被管理到一个Map中，以当前类的class文件为key当前类的比价器对象为value
+
+        ```
+         public static void define(Class c, WritableComparator comparator) {
+        		comparators.put(c, comparator);
+        		}
+        ```
+
+**4、排序案例**
+
+1）需求
+
+根据序列化案例产生的结果再次对总流量进行倒序排序。
+
+![](E:\learning\04_java\01_笔记\BigData\01_Hadoop\picture\WritableComparable排序案例分析（全排序）.png)
+
+**2）代码实现**
+
+​	1、在FlowBean中实现WritableComparabe接口，重写compareTo方法
+
+```
+    /**
+     * 自定义排序规则
+     * 根据总流量
+     * @param o
+     * @return
+     */
+    @Override
+    public int compareTo(FlowBean o) {
+        return -this.getSumFlow().compareTo(o.getSumFlow());
+    }
+```
+
+​	2、编写Mapper类
+
+```java
+package com.xu1an.mr.writableComparable;
+
+import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Mapper;
+
+import java.io.IOException;
+
+/**
+ * Created with IntelliJ IDEA.
+ *
+ * @Author: Xu1Aan
+ * @Date: 2022/03/17/20:32
+ * @Description:
+ */
+public class FlowMapper extends Mapper<LongWritable, Text, FlowBean, Text> {
+
+    private Text outValue = new Text();
+    private FlowBean outKey = new FlowBean();
+
+    /**
+     * 核心业务逻辑处理
+     * @param key
+     * @param value
+     * @param context
+     * @throws IOException
+     * @throws InterruptedException
+     */
+    @Override
+    protected void map(LongWritable key, Text value, Mapper<LongWritable, Text, FlowBean, Text>.Context context) throws IOException, InterruptedException {
+        //获取当前行数据
+        String line = value.toString();
+        //切割数据
+        String[] phoneData = line.split("\t");
+
+        //当前数据： 7   13560436666  120.196.100.99  1116    954      200
+        //获取输出数据的key(手机号)
+        outValue.set(phoneData[1]);
+        //获取输出数据的value
+        int up = Integer.parseInt(phoneData[phoneData.length - 3]);
+        int down = Integer.parseInt(phoneData[phoneData.length - 2]);
+        outKey.setUpFlow(up);
+        outKey.setDownFlow(down);
+        outKey.setSumFlow(up+down);
+
+        //将数据输出
+        context.write(outKey,outValue);
+    }
+}
+```
+
+3、编写Reducer类
+
+```
+package com.xu1an.mr.writableComparable;
+
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Reducer;
+
+import java.io.IOException;
+
+/**
+ * Created with IntelliJ IDEA.
+ *
+ * @Author: Xu1Aan
+ * @Date: 2022/03/17/20:32
+ * @Description:
+ */
+public class FlowReduce extends Reducer<FlowBean, Text, Text, FlowBean> {
+
+    private Text outKey = new Text();
+    private FlowBean outValue = new FlowBean();
+
+    /**
+     * 核心业务逻辑处理
+     * @param key
+     * @param values
+     * @param context
+     * @throws IOException
+     * @throws InterruptedException
+     */
+    @Override
+    protected void reduce(FlowBean key, Iterable<Text> values, Reducer<FlowBean, Text, Text, FlowBean>.Context context) throws IOException, InterruptedException {
+        for (Text value : values) {
+            context.write(value,key);
+        }
+    }
+}
+
+```
 
