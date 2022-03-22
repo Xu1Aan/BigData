@@ -44,7 +44,7 @@ MapReduce无法像MySQL一样，在毫秒或者秒级内返回结果。会产生
 
 ### 1.3 MapReduce核心思想
 
-<img src="E:\learning\04_java\01_笔记\BigData\hadoop\picture\MapReduce核心编程思想.png" style="zoom: 33%;" />
+<img src=".\picture\MapReduce核心编程思想.png" style="zoom: 33%;" />
 
 （1）分布式的运算程序往往需要分成至少2个阶段。
 
@@ -794,7 +794,7 @@ MapTask的并行度决定Map阶段的任务处理并发度，进而影响到整�
 - 切片大小和切块大小默认是一致的，这样设计目的为了避免将来切片读取数据的时候有跨机器的情况
 ```
 
-<img src="E:\learning\04_java\01_笔记\BigData\hadoop\picture\数据切片与MapTask并行度决定机制.png" style="zoom: 50%;" />
+<img src=".\picture\数据切片与MapTask并行度决定机制.png" style="zoom: 50%;" />
 
 #### 3.1.2 InpuFormat的体系结构
 
@@ -1091,7 +1091,10 @@ Map方法之后，Reduce方法之前的数据处理过程称之为Shuffle。
   - 当ReduceTask的数量设置 > 实际用到的分区数 此时会生成空的分区文件
 
   - 当ReduceTask的数量设置 < 实际用到的分区数 此时会报错
-  - 当ReduceTask的数量设置 = 1 结果文件会输出到一个文件中，由以下源码可以论证：
+
+  - 当ReduceTask的数量设置 = 1 结果文件会输出到一个文件中，
+
+    **由以下源码可以论证：**
 
   ```java
   // 获取当前ReduceTask的数量
@@ -1108,8 +1111,7 @@ Map方法之后，Reduce方法之前的数据处理过程称之为Shuffle。
   			return partitions - 1;
   			}
   		};
-  	}
-  					  
+  	}  
   ```
 
 - 分区编号生成的规则：根据指定的ReduceTask的数量 从0开始，依次累加。
@@ -1320,7 +1322,7 @@ MapReduce根据输入记录的键对数据集排序。保证输出的每个文�
 
 3.  Hadoop自身的数据类型是如何拥有比较器对象
 
-   - 以Text为例：打来Text的源码
+   - 以Text为例：打开Text的源码
 
      1. 当前Text实现了WritableComparable接口
 
