@@ -2335,4 +2335,339 @@ Hadoop为每个作业维护若干内置计数器，以描述多项指标。例�
 
    详见数据清洗案例。
 
-3.5.2 数据清洗(ETL)
+#### 3.5.2 数据清洗(ETL)
+
+在运行核心业务MapReduce程序之前，往往要先对数据进行清洗，清理掉不符合用户要求的数据。清理的过程往往只需要运行Mapper程序，不需要运行Reduce程序。
+
+**1）需求分析**
+
+需要在Map阶段对输入的数据根据规则进行过滤清洗。去除日志中字段个数小于等于11的日志行内容。
+
+**2）代码实现**
+
+（1）编写Driver驱动类
+
+```java
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.NullWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+
+import java.io.IOException;
+
+/**
+ * Created with IntelliJ IDEA.
+ *
+ * @Author: Xu1Aan
+ * @Date: 2022/03/24/15:23
+ * @Description:
+ */
+public class EtlDriver {
+    public static void main(String[] args) throws IOException, InterruptedException, ClassNotFoundException {
+        Configuration conf = new Configuration();
+        Job job = Job.getInstance(conf);
+        job.setJarByClass(EtlDriver.class);
+        job.setMapperClass(EtlMapper.class);
+        job.setMapOutputKeyClass(Text.class);
+        job.setMapOutputValueClass(NullWritable.class);
+
+        job.setOutputKeyClass(Text.class);
+        job.setOutputValueClass(NullWritable.class);
+
+        //设置reduce的数量为0
+        job.setNumReduceTasks(0);
+
+        FileInputFormat.setInputPaths(job,new Path("E:\\learning\\04_java\\02_大数据资料\\00_hadoop\\资料\\07_测试数据\\ETL"));
+        FileOutputFormat.setOutputPath(job,new Path("E:\\learning\\04_java\\02_大数据资料\\00_hadoop\\out\\data1"));
+
+        job.waitForCompletion(true);
+    }
+}
+```
+
+（2）编写Mapper
+
+```java
+import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.NullWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Mapper;
+
+import java.io.IOException;
+
+/**
+ * Created with IntelliJ IDEA.
+ *
+ * @Author: Xu1Aan
+ * @Date: 2022/03/24/15:23
+ * @Description:
+ */
+public class EtlMapper extends Mapper<LongWritable, Text, Text, NullWritable> {
+
+    private Text outkey = new Text();
+
+    @Override
+    protected void map(LongWritable key, Text value, Mapper<LongWritable, Text, Text, NullWritable>.Context context) throws IOException, InterruptedException {
+        //获取当前行数据
+        String line = value.toString();
+        //切割
+        String[] datas = line.split(" ");
+        //遍历集合 将字段长度 小于等于11的过滤
+        for (String data : datas) {
+            if(data.length()>11){
+                outkey.set(data);
+                context.write(outkey,NullWritable.get());
+            }else
+                return;
+        }
+
+    }
+}
+```
+
+### 3.6 Job提交流程源码
+
+![](.\picture\Job提交流程源码解析.png)
+
+1. 定位
+
+   ```java
+    job.waitForCompletion(true); 
+   ```
+
+2.  跟到 waitForCompletion() 中
+
+   ```java
+   public boolean waitForCompletion(boolean verbose
+   ) throws IOException, InterruptedException,
+   // 判断当前Job的状态是否为定义阶段
+   	ClassNotFoundException {
+   	if (state == JobState.DEFINE) {
+   		// 提交方法
+           submit();
+       }
+       if (verbose) {
+       	monitorAndPrintJob();
+       } else {
+   		// get the completion poll interval from the client.
+   		int completionPollIntervalMillis =
+           Job.getCompletionPollInterval(cluster.getConf());
+           while (!isComplete()) {
+           try {
+           	Thread.sleep(completionPollIntervalMillis);
+           } catch (InterruptedException ie) {
+           	}
+           }
+       }
+       return isSuccessful();
+       }
+   ```
+
+3. 进入submit() 方法
+
+   ```java
+   public void submit() throws IOException, InterruptedException, ClassNotFoundException {
+   	// 确认当前Job的状态
+   	ensureState(JobState.DEFINE);
+   	// 新老API的兼容
+   	setUseNewAPI();
+   	// 连接集群（如果是本地模式结果就是LocalRunner, 如果Yarn集群结果就是YARNRuuner）
+   	connect();
+   	// 开始提交Job
+   	final JobSubmitter submitter = 
+   		getJobSubmitter(cluster.getFileSystem(), cluster.getClient());
+   	status = ugi.doAs(new PrivilegedExceptionAction<JobStatus>() {
+   		public JobStatus run() throws IOException, InterruptedException, ClassNotFoundException {
+   		// 提交Job
+   		return submitter.submitJobInternal(Job.this, cluster);
+   		}
+   	});
+   	state = JobState.RUNNING;
+   	LOG.info("The url to track the job: " + getTrackingURL());
+   	}	
+   ```
+
+4. 进入 submitJobInternal() 
+
+   ```java
+   /**
+   * Internal method for submitting jobs to the system.
+   * 
+   *	The job submission process involves:
+   1、检测输入输出路径的合法性
+   *   Checking the input and output specifications of the job.
+   2、给当前Job计算切片信息
+   *   Computing the {@link InputSplit}s for the job.
+   3、添加分布式缓存文件
+   *   Setup the requisite accounting information for the 
+   *   {@link DistributedCache} of the job, if necessary.
+   4、将必要的内容都拷贝到 job执行的临时目录（jar包、切片信息、配置文件）
+   *   Copying the job's jar and configuration to the map-reduce system
+   *   directory on the distributed file-system. 
+   5、 提交Job
+   *   Submitting the job to the <code>JobTracker</code> and optionally
+   *   monitoring it's status.
+   */
+   ```
+
+### 3.7 MapReduce总结
+
+#### 3.7.1 MapReduce工作机制
+
+MapReduce工作机制一
+
+![](E:\learning\04_java\01_笔记\BigData\01_Hadoop\picture\MapReduce详细工作流程（一）.png)
+
+MapReduce工作机制二
+
+
+
+![](.\picture\MapReduce详细工作流程（二）.png)
+
+上面的流程是整个MapReduce最全工作流程，但是Shuffle过程只是从第7步开始到第16步结束，具体Shuffle过程详解，如下：
+
+（1）MapTask收集我们的map()方法输出的kv对，放到内存缓冲区中
+
+（2）从内存缓冲区不断溢出本地磁盘文件，可能会溢出多个文件
+
+（3）多个溢出文件会被合并成大的溢出文件
+
+（4）在溢出过程及合并的过程中，都要调用Partitioner进行分区和针对key进行排序
+
+（5）ReduceTask根据自己的分区号，去各个MapTask机器上取相应的结果分区数据
+
+（6）ReduceTask会抓取到同一个分区的来自不同MapTask的结果文件，ReduceTask会将这些文件再进行合并（归并排序）
+
+（7）合并成大文件后，Shuffle的过程也就结束了，后面进入ReduceTask的逻辑运算过程（从文件中取出一个一个的键值对Group，调用用户自定义的reduce()方法）
+
+#### 3.7.2 MapTask工作机制
+
+![](.\picture\MapTask工作机制.png)
+
+​	（1）Read阶段：MapTask通过InputFormat获得的RecordReader，从输入InputSplit中解析出一个个key/value。
+
+​    （2）Map阶段：该节点主要是将解析出的key/value交给用户编写map()函数处理，并产生一系列新的key/value。
+
+​    （3）Collect收集阶段：在用户编写map()函数中，当数据处理完成后，一般会调用OutputCollector.collect()输出结果。在该函数内部，它会将生成的key/value分区（调用Partitioner），并写入一个环形内存缓冲区中。
+
+​    （4）Spill阶段：即“溢写”，当环形缓冲区满后，MapReduce会将数据写到本地磁盘上，生成一个临时文件。需要注意的是，将数据写入本地磁盘之前，先要对数据进行一次本地排序，并在必要时对数据进行合并、压缩等操作。
+
+​    溢写阶段详情：
+
+​    步骤1：利用快速排序算法对缓存区内的数据进行排序，排序方式是，先按照分区编号Partition进行排序，然后按照key进行排序。这样，经过排序后，数据以分区为单位聚集在一起，且同一分区内所有数据按照key有序。
+
+​    步骤2：按照分区编号由小到大依次将每个分区中的数据写入任务工作目录下的临时文件output/spillN.out（N表示当前溢写次数）中。如果用户设置了Combiner，则写入文件之前，对每个分区中的数据进行一次聚集操作。
+
+​    步骤3：将分区数据的元信息写到内存索引数据结构SpillRecord中，其中每个分区的元信息包括在临时文件中的偏移量、压缩前数据大小和压缩后数据大小。如果当前内存索引大小超过1MB，则将内存索引写到文件output/spillN.out.index中。
+
+​    （5）Merge阶段：当所有数据处理完成后，MapTask对所有临时文件进行一次合并，以确保最终只会生成一个数据文件。
+
+​    当所有数据处理完后，MapTask会将所有临时文件合并成一个大文件，并保存到文件output/file.out中，同时生成相应的索引文件output/file.out.index。
+
+​    在进行文件合并过程中，MapTask以分区为单位进行合并。对于某个分区，它将采用多轮递归合并的方式。每轮合并mapreduce.task.io.sort.factor（默认10）个文件，并将产生的文件重新加入待合并列表中，对文件排序后，重复以上过程，直到最终得到一个大文件。
+
+​    让每个MapTask最终只生成一个数据文件，可避免同时打开大量文件和同时读取大量小文件产生的随机读取带来的开销。
+
+#### 3.7.3 ReduceTask工作机制
+
+![](.\picture\ReduceTask工作机制.png)
+
+​    （1）Copy阶段：ReduceTask从各个MapTask上远程拷贝一片数据，并针对某一片数据，如果其大小超过一定阈值，则写到磁盘上，否则直接放到内存中。
+
+​    （2）Merge阶段：在远程拷贝数据的同时，ReduceTask启动了两个后台线程对内存和磁盘上的文件进行合并，以防止内存使用过多或磁盘上文件过多。
+
+​    （3）Sort阶段：按照MapReduce语义，用户编写reduce()函数输入数据是按key进行聚集的一组数据。为了将key相同的数据聚在一起，Hadoop采用了基于排序的策略。由于各个MapTask已经实现对自己的处理结果进行了局部排序，因此，ReduceTask只需对所有数据进行一次归并排序即可。
+
+​    （4）Reduce阶段：reduce()函数将计算结果写到HDFS上。
+
+**1）设置ReduceTask并行度（个数）**
+
+ReduceTask的并行度同样影响整个Job的执行并发度和执行效率，但与MapTask的并发数由切片数决定不同，ReduceTask数量的决定是可以直接手动设置：
+
+// 默认值是1，手动设置为4
+
+job.setNumReduceTasks(4);
+
+**2）实验：测试ReduceTask多少合适**
+
+（1）实验环境：1个Master节点，16个Slave节点：CPU:8GHZ，内存: 2G
+
+（2）实验结论：
+
+表 改变ReduceTask （数据量为1GB）
+
+| MapTask =16 |      |      |      |      |      |      |      |      |      |      |
+| ----------- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- | ---- |
+| ReduceTask  | 1    | 5    | 10   | 15   | 16   | 20   | 25   | 30   | 45   | 60   |
+| 总时间      | 892  | 146  | 110  | 92   | 88   | 100  | 128  | 101  | 145  | 104  |
+
+**3）注意事项**
+
+（1）ReduceTask=0，表示没有Reduce阶段，输出文件个数和Map个数一致。
+
+（2）ReduceTask默认值就是1，所以输出文件个数为一个。
+
+（3）如果数据分布不均匀，就有可能在Reduce阶段产生数据倾斜
+
+（4）ReduceTask数量并不是任意设置，还要考虑业务逻辑需求，有些情况下，需要计算全局汇总结果，就只能有1个ReduceTask。
+
+（5）具体多少个ReduceTask，需要根据集群性能而定。
+
+（6）如果分区数不是1，但是ReduceTask为1，是否执行分区过程。答案是：不执行分区过程。因为在MapTask的源码中，执行分区的前提是先判断ReduceNum个数是否大于1。不大于1肯定不执行。
+
+#### 3.7.4 MapReduce开发总结
+
+**1．输入数据接口：InputFormat**
+
+ （1）默认使用的实现类是：TextInputFormat 
+
+（2）TextInputFormat的功能逻辑是：一次读一行文本，然后将该行的起始偏移量作为key，行内容作为value返回。
+
+（3）CombineTextInputFormat可以把多个小文件合并成一个切片处理，提高处理效率。
+
+**2．逻辑处理接口：Mapper**
+
+用户根据业务需求实现其中三个方法：map()  setup()  cleanup () 
+
+**3．Partitioner分区**
+
+（1）有默认实现 HashPartitioner，逻辑是根据key的哈希值和numReduces来返回一个分区号；key.hashCode()&Integer.MAXVALUE % numReduces
+
+（2）如果业务上有特别的需求，可以自定义分区。
+
+**4．Comparable排序**
+
+（1）当我们用自定义的对象作为key来输出时，就必须要实现WritableComparable接口，重写其中的compareTo()方法。
+
+（2）部分排序：对最终输出的每一个文件进行内部排序。
+
+（3）全排序：对所有数据进行排序，通常只有一个Reduce。
+
+（4）二次排序：排序的条件有两个。
+
+**5．Combiner合并**
+
+Combiner合并可以提高程序执行效率，减少IO传输。但是使用时必须不能影响原有的业务处理结果。
+
+**6．逻辑处理接口：Reducer**
+
+用户根据业务需求实现其中三个方法：reduce()  setup()  cleanup () 
+
+**7．输出数据接口：OutputFormat**
+
+（1）默认实现类是TextOutputFormat，功能逻辑是：将每一个KV对，向目标文本文件输出一行。
+
+ （2）将SequenceFileOutputFormat输出作为后续 MapReduce任务的输入，这便是一种好的输出格式，因为它的格式紧凑，很容易被压缩。
+
+（3）用户还可以自定义OutputFormat。
+
+---
+
+## 4  Yarn资源调度器
+
+Yarn是一个资源调度平台，负责为运算程序提供服务器运算资源，相当于一个分布式的操作系统平台，而MapReduce等运算程序则相当于运行于操作系统之上的应用程序。
+
+### 4.1 Yarn工作流程
