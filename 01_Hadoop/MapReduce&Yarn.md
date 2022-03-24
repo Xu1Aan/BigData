@@ -1228,7 +1228,7 @@ job.setNumReduceTasks(5);
 job.setPartitionerClass(PhonePartitioner.class);
 ```
 
-#### 3.2.1 WritableComparable排序
+#### 3.2.2 WritableComparable排序
 
 **1、排序概述**
 
@@ -1471,3 +1471,868 @@ public class FlowReduce extends Reducer<FlowBean, Text, Text, FlowBean> {
 
 ```
 
+4、设置Driver
+
+```java
+package com.xu1an.mr.writableComparable;
+
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+
+import java.io.IOException;
+
+/**
+ * Created with IntelliJ IDEA.
+ *
+ * @Author: Xu1Aan
+ * @Date: 2022/03/17/20:32
+ * @Description:
+ */
+public class FlowDriver {
+    public static void main(String[] args) throws IOException, InterruptedException, ClassNotFoundException {
+        Configuration conf = new Configuration();
+        Job job = Job.getInstance(conf);
+
+        job.setJarByClass(FlowDriver.class);
+        job.setMapperClass(FlowMapper.class);
+        job.setReducerClass(FlowReduce.class);
+
+        job.setMapOutputKeyClass(FlowBean.class);
+        job.setMapOutputValueClass(Text.class);
+
+        job.setOutputKeyClass(Text.class);
+        job.setOutputValueClass(FlowBean.class);
+
+        //设置自定义比较器对象
+        job.setSortComparatorClass(FlowBeanComparator.class);
+        
+        //可将Partition分区应用到这里
+        //设置ReduceTask的数量
+        job.setNumReduceTasks(5);
+        //指定自定义分区
+        job.setPartitionerClass(PhonePartitioner.class);
+
+        FileInputFormat.setInputPaths(job,new Path("E:\\learning\\04_java\\02_大数据资料\\00_hadoop\\资料\\07_测试数据\\phone_data"));
+        FileOutputFormat.setOutputPath(job,new Path("E:\\learning\\04_java\\02_大数据资料\\00_hadoop\\out\\data_4"));
+
+        job.waitForCompletion(true);
+    }
+}
+```
+
+#### 3.3.3 Combiner合并
+
+（1）Combiner是MR程序中Mapper和Reducer之外的一种组件。
+
+（2）Combiner组件的父类就是Reducer。
+
+（3）Combiner和Reducer的区别在于运行的位置
+
+ 			Combiner是在每一个MapTask所在的节点运行;
+
+​		 	Reducer是接收全局所有Mapper的输出结果；
+
+（4）Combiner的意义就是对每一个MapTask的输出进行局部汇总，以减小网络传输量。
+
+（5）Combiner能够应用的前提是不能影响最终的业务逻辑，而且，Combiner的输出kv应该跟Reducer的输入kv类型要对应起来。
+
+```
+Mapper
+3 5 7 ->(3+5+7)/3=5 
+2 6 ->(2+6)/2=4
+
+Reducer
+(3+5+7+2+6)/5=23/5  不等于  (5+4)/2=9/2
+```
+
+**Combiner 流程的使用**
+
+- Combiner的使用场景：总的来说，为了提升MR程序的运行效率，为了减轻ReduceTask的压力，另外减少IO的开销。
+- 使用Combiner
+  - 自定一个Combiner类 继承Hadoop提供的Reducer
+  - 在Job中指定自定义的Combiner类
+- Combiner不适用的场景：Reduce端处理的数据考虑到多个MapTask的数据的整体集时 就不能提前合并了。
+
+### 3.3 OutputFormat数据输出
+
+#### 3.3.1 OutputFormat接口实现类
+
+​     OutputFormat是MapReduce输出的基类，所有实现MapReduce输出都实现了 OutputFormat接口。下面我们介绍几种常见的OutputFormat实现类。
+
+**1. 概念：OutputFormat主要负责最终数据的写出**
+
+- OutputFormat 类的体系结构
+
+  - **FileOutputFormat** OutputFormat的子类（实现类): 对 checkOutputSpecs() 做了具体的实现(检查提交路径)
+  - **TextOutputFormat** FileOutputFormat的子类: 对 getRecordWriter() 做了具体实现	
+
+- OutputFormat的使用场景
+
+  当我们对MR最终的结果有个性化制定的需求，就可以通过自定义OutputFormat来实现
+
+-  如何实现OutputFormat自定义：
+
+  ① 自定一个 OutputFormat 类，继承Hadoop提供的OutputFormat，在该类中实现getRecordWriter() ,返回一个RecordWriter
+
+  ② 自定义一个 RecordWriter 并且继承Hadoop提供的RecordWriter类，在该类中重写 write()  和 close()  在这些方法中完成自定义输出。
+
+**2．文本输出TextOutputFormat**
+
+​	默认的输出格式是TextOutputFormat，它把每条记录写为文本行。它的键和值可以是任意类型，因为TextOutputFormat调用toString()方法把它们转换为字符串。
+
+**3．SequenceFileOutputFormat**
+
+​	将SequenceFileOutputFormat输出作为后续 MapReduce任务的输入，这便是一种好的输出格式，因为它的格式紧凑，很容易被压缩。
+
+**4．自定义OutputFormat**
+
+​	根据用户需求，自定义实现输出。
+
+**5．使用场景**
+
+​	为了实现控制最终文件的输出路径和输出格式，可以自定义OutputFormat。
+
+​    例如：要在一个MapReduce程序中根据数据的不同输出两类结果到不同目录，这类灵活的输出需求可以通过自定义OutputFormat来实现。
+
+**6．自定义OutputFormat步骤**
+
+ （1）自定义一个类继承FileOutputFormat。
+
+ （2）改写RecordWriter，具体改写输出数据的方法write()。
+
+#### 3.3.2自定义OutputFormat案例实操
+
+**1）需求分析**
+
+​    过滤输入的log日志，包含xu1an的网站输出到e:/xu1an.log，不包含xu1an的网站输出到e:/other.log。
+
+**2）案例实操**
+
+（1）编写LogMapper类
+
+```java
+import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.NullWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Mapper;
+
+import java.io.IOException;
+
+/**
+ * Created with IntelliJ IDEA.
+ *
+ * @Author: Xu1Aan
+ * @Date: 2022/03/22/16:01
+ * @Description:
+ */
+public class LogMapper extends Mapper<LongWritable, Text, Text, NullWritable> {
+
+    /**
+     * 核心处理方法
+     * @param key
+     * @param value
+     * @param context
+     * @throws IOException
+     * @throws InterruptedException
+     */
+    @Override
+    protected void map(LongWritable key, Text value, Mapper<LongWritable, Text, Text, NullWritable>.Context context) throws IOException, InterruptedException {
+        //直接写出
+        context.write(value, NullWritable.get());
+    }
+}
+```
+
+（2）编写LogReducer类
+
+```java
+import org.apache.hadoop.io.NullWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Reducer;
+
+import java.io.IOException;
+
+/**
+ * Created with IntelliJ IDEA.
+ *
+ * @Author: Xu1Aan
+ * @Date: 2022/03/22/16:02
+ * @Description:
+ */
+public class LogReducer extends Reducer<Text, NullWritable,Text, NullWritable> {
+    @Override
+    protected void reduce(Text key, Iterable<NullWritable> values, Reducer<Text, NullWritable, Text, NullWritable>.Context context) throws IOException, InterruptedException {
+        //遍历直接写出
+        for (NullWritable value : values) {
+            context.write(key,NullWritable.get());
+        }
+    }
+}
+```
+
+（3）自定义一个OutputFormat类
+
+```java
+import org.apache.hadoop.io.NullWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.RecordWriter;
+import org.apache.hadoop.mapreduce.TaskAttemptContext;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+
+import java.io.IOException;
+
+/**
+ * Created with IntelliJ IDEA.
+ *
+ * @Author: Xu1Aan
+ * @Date: 2022/03/22/16:12
+ * @Description:
+ * 自定义的OutputFormat需要继承Hadoop提供的OutputFormat
+ */
+public class LogOutputFormat extends FileOutputFormat<Text, NullWritable>{
+
+    @Override
+    public RecordWriter<Text, NullWritable> getRecordWriter(TaskAttemptContext job) throws IOException, InterruptedException {
+        LogRecordWriter logRecordWriter = new LogRecordWriter(job);
+        return logRecordWriter;
+    }
+}
+```
+
+（4）编写LogRecordWriter类
+
+```java
+package com.xu1an.mr.outputFormat;
+
+import org.apache.hadoop.fs.FSDataOutputStream;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.IOUtils;
+import org.apache.hadoop.io.NullWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.RecordWriter;
+import org.apache.hadoop.mapreduce.TaskAttemptContext;
+
+import java.io.IOException;
+
+
+/**
+ * Created with IntelliJ IDEA.
+ *
+ * @Author: Xu1Aan
+ * @Date: 2022/03/22/16:16
+ * @Description:
+ */
+public class LogRecordWriter extends RecordWriter<Text, NullWritable> {
+
+    //定义输出路径
+    private String xu1anPath = "E:\\learning\\04_java\\02_大数据资料\\00_hadoop\\out\\xu1an.txt";
+    private String otherPath = "E:\\learning\\04_java\\02_大数据资料\\00_hadoop\\out\\other.txt";
+    private FileSystem fs;
+    private FSDataOutputStream xu1anOutputStream;
+    private FSDataOutputStream otherOutputStream;
+
+
+    public LogRecordWriter(TaskAttemptContext job) throws IOException {
+        //获取Hadoop的文件系统对象
+        fs = FileSystem. get(job.getConfiguration());
+        //获取输出流
+        xu1anOutputStream = fs.create(new Path(xu1anPath));
+        //获取输出流
+        otherOutputStream= fs.create(new Path(otherPath));
+    }
+
+
+
+    /**
+     * 实现数据写出的逻辑
+     * @param key
+     * @param value
+     * @throws IOException
+     * @throws InterruptedException
+     */
+    @Override
+    public void write(Text key, NullWritable value) throws IOException, InterruptedException {
+        //获取当前输入数据
+        String logData = key.toString();
+        if (logData.contains("xu1an")){
+            xu1anOutputStream.writeBytes(logData+"\n");
+        } else {
+            otherOutputStream.writeBytes(logData+"\n");
+        }
+
+    }
+
+    /**
+     * 关闭资源
+     * @param context
+     * @throws IOException
+     * @throws InterruptedException
+     */
+    @Override
+    public void close(TaskAttemptContext context) throws IOException, InterruptedException {
+        IOUtils.closeStream(xu1anOutputStream);
+        IOUtils.closeStream(otherOutputStream);
+    }
+}
+```
+
+（5）编写LogDriver类
+
+```java
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.NullWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+
+import java.io.IOException;
+
+/**
+ * Created with IntelliJ IDEA.
+ *
+ * @Author: Xu1Aan
+ * @Date: 2022/03/22/16:02
+ * @Description:
+ */
+public class LogDriver {
+
+    public static void main(String[] args) throws IOException, InterruptedException, ClassNotFoundException {
+        Configuration conf = new Configuration();
+        Job job = Job.getInstance(conf);
+        job.setJarByClass(LogDriver.class);
+        job.setMapperClass(LogMapper.class);
+        job.setReducerClass(LogReducer.class);
+
+        job.setMapOutputKeyClass(Text.class);
+        job.setMapOutputValueClass(NullWritable.class);
+
+        job.setOutputKeyClass(Text.class);
+        job.setOutputValueClass(NullWritable.class);
+
+        FileInputFormat.setInputPaths(job,new Path("E:\\learning\\04_java\\02_大数据资料\\00_hadoop\\资料\\07_测试数据\\log"));
+        FileOutputFormat.setOutputPath(job,new Path("E:\\learning\\04_java\\02_大数据资料\\00_hadoop\\out\\data5"));
+
+        //指定OutputFormat类
+        job.setOutputFormatClass(LogOutputFormat.class);
+
+        job.waitForCompletion(true);
+
+    }
+}
+```
+
+### 3.4 Join多种应用
+
+#### 3.4.1 Reduce Join工作原理
+
+-   Map端的主要工作：为来自不同表或文件的key/value对，打标签以区别不同来源的记录。然后用连接字段作为key，其余部分和新加的标志作为value，最后进行输出。
+-   Reduce端的主要工作：在Reduce端以连接字段作为key的分组已经完成，我们只需要在每一个分组当中将那些来源于不同文件的记录(在Map阶段已经打标志)分开，最后进行合并就ok了。
+
+#### 3.4.2 Reduce Join案例实操
+
+**1）需求分析**
+
+通过将关联条件作为Map输出的key，将两表满足Join条件的数据并携带数据所来源的文件信息，发往同一个ReduceTask，在Reduce中进行数据的串联。
+
+![](.\picture\Reduce端表合并.png)
+
+**2）代码实现**
+
+```java
+import org.apache.hadoop.io.Writable;
+
+import java.io.DataInput;
+import java.io.DataOutput;
+import java.io.IOException;
+
+/**
+ * Created with IntelliJ IDEA.
+ *
+ * @Author: Xu1Aan
+ * @Date: 2022/03/22/17:30
+ * @Description:
+ */
+public class OrderProduct implements Writable {
+
+    //order表数据
+    private String orderId;
+    private String pid;
+    private Integer amount;
+
+    //product表数据
+    private String pname;
+
+    //区分数据来源
+    private String title;
+
+    public String getOrderId() {
+        return orderId;
+    }
+
+    public void setOrderId(String orderId) {
+        this.orderId = orderId;
+    }
+
+    public String getPid() {
+        return pid;
+    }
+
+    public void setPid(String pid) {
+        this.pid = pid;
+    }
+
+    public Integer getAmount() {
+        return amount;
+    }
+
+    public void setAmount(Integer amount) {
+        this.amount = amount;
+    }
+
+    public String getPname() {
+        return pname;
+    }
+
+    public void setPname(String pname) {
+        this.pname = pname;
+    }
+
+    public String getTitle() {
+        return title;
+    }
+
+    public void setTitle(String title) {
+        this.title = title;
+    }
+
+    @Override
+    public String toString() {
+        return orderId + "\t" + pname + "\t" + amount;
+    }
+
+    //序列化
+    @Override
+    public void write(DataOutput out) throws IOException {
+        out.writeUTF(orderId);
+        out.writeUTF(pid);
+        out.writeInt(amount);
+        out.writeUTF(pname);
+        out.writeUTF(title);
+    }
+
+   //反序列化
+    @Override
+    public void readFields(DataInput in) throws IOException {
+        orderId = in.readUTF();
+        pid = in.readUTF();
+        amount = in.readInt();
+        pname = in.readUTF();
+        title = in.readUTF();
+    }
+}
+```
+
+（2）编写ReduceJoinMapper类
+
+```
+import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Mapper;
+import org.apache.hadoop.mapreduce.lib.input.FileSplit;
+
+import java.io.IOException;
+
+/**
+ * Created with IntelliJ IDEA.
+ *
+ * @Author: Xu1Aan
+ * @Date: 2022/03/22/17:29
+ * @Description:
+ */
+public class ReduceJoinMapper extends Mapper<LongWritable, Text, Text, OrderProduct> {
+
+    private Text outKey = new Text();
+    private OrderProduct outValue = new OrderProduct();
+    private FileSplit inputSplit;
+
+    @Override
+    protected void setup(Mapper<LongWritable, Text, Text, OrderProduct>.Context context) throws IOException, InterruptedException {
+        inputSplit = (FileSplit) context.getInputSplit();
+    }
+
+    /**
+     * 核心业务处理方法
+     *      将两个做关联的数据进行搜集
+     * @param key
+     * @param value
+     * @param context
+     * @throws IOException
+     * @throws InterruptedException
+     */
+    @Override
+    protected void map(LongWritable key, Text value, Mapper<LongWritable, Text, Text, OrderProduct>.Context context) throws IOException, InterruptedException {
+        //获取当前行数据
+        String line = value.toString();
+        String[] datas = line.split("\t");
+        //将当前数据封装到OrderProduct
+        if (inputSplit.getPath().getName().contains("order")){
+            // 当前数据来源于order.txt文件 1001 01 1
+            // 封装输出数据的key
+            outKey.set(datas[1]);
+            // 封装输出数据的value
+            outValue.setOrderId(datas[0]);
+            outValue.setPid(datas[1]);
+            outValue.setAmount(Integer.parseInt(datas[2]));
+            outValue.setPname("");
+            outValue.setTitle("order");
+        } else {
+            // 当前数据来源于pd.txt文件 1001 01 1
+            // 封装输出数据的key
+            outKey.set(datas[0]);
+            // 封装输出数据的value
+            outValue.setOrderId("");
+            outValue.setPid(datas[0]);
+            outValue.setAmount(0);
+            outValue.setPname(datas[1]);
+            outValue.setTitle("product");
+        }
+
+        //将数据写出
+        context.write(outKey,outValue);
+    }
+}
+```
+
+（3）编写ReduceJoinReducer类
+
+```java
+import org.apache.commons.beanutils.BeanUtils;
+import org.apache.hadoop.io.NullWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Reducer;
+
+import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * Created with IntelliJ IDEA.
+ *
+ * @Author: Xu1Aan
+ * @Date: 2022/03/22/17:29
+ * @Description:
+ */
+public class ReduceJoinReducer extends Reducer<Text, OrderProduct, OrderProduct, NullWritable> {
+
+    private List<OrderProduct> orderList= new ArrayList<OrderProduct>();
+    private OrderProduct product = new OrderProduct();
+    /**
+     * 核心处理方法
+     *     接收Map端整合好的数据进行Join的操作
+     * @param key
+     * @param values
+     * @param context
+     * @throws IOException
+     * @throws InterruptedException
+     */
+    @Override
+    protected void reduce(Text key, Iterable<OrderProduct> values, Reducer<Text, OrderProduct, OrderProduct, NullWritable>.Context context) throws IOException, InterruptedException {
+        //遍历当前相同可以的一组values
+        for (OrderProduct orderProduct : values) {
+            //判断当前数据来源
+            if (orderProduct.getTitle().equals("order")){
+                try {
+                    //当前数据来源order.txt文件，将当前数据管理到一个集合当中
+                    OrderProduct thisOrderProduct = new OrderProduct();
+                    //将当前传入OrderProduct复制到thisOrderProduct
+                    BeanUtils.copyProperties(thisOrderProduct,orderProduct);
+                    orderList.add(thisOrderProduct);
+                } catch (IllegalAccessException e) {
+                    e.printStackTrace();
+                } catch (InvocationTargetException e) {
+                    e.printStackTrace();
+                }
+            } else {
+                //当前数据来源product.txt
+                try {
+                    //将当前传入OrderProduct复制到product
+                    BeanUtils.copyProperties(product,orderProduct);
+                } catch (IllegalAccessException e) {
+                    e.printStackTrace();
+                } catch (InvocationTargetException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
+        //进行join操作
+        for (OrderProduct orderProductForLast : orderList) {
+            orderProductForLast.setPname(product.getPname());
+            context.write(orderProductForLast,NullWritable.get());
+        }
+
+        //清空orderList
+        orderList.clear();
+    }
+}
+```
+
+（4）编写ReduceJoinDriver类
+
+```java
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.NullWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+
+import java.io.IOException;
+
+/**
+ * Created with IntelliJ IDEA.
+ *
+ * @Author: Xu1Aan
+ * @Date: 2022/03/22/17:29
+ * @Description:
+ */
+public class ReduceJoinDriver {
+    public static void main(String[] args) throws IOException, InterruptedException, ClassNotFoundException {
+        Configuration conf = new Configuration();
+        Job job = Job.getInstance(conf);
+        job.setJarByClass(ReduceJoinDriver.class);
+        job.setMapperClass(ReduceJoinMapper.class);
+        job.setReducerClass(ReduceJoinReducer.class);
+
+        job.setMapOutputKeyClass(Text.class);
+        job.setMapOutputValueClass(OrderProduct.class);
+
+        job.setOutputKeyClass(OrderProduct.class);
+        job.setOutputValueClass(NullWritable.class);
+
+        FileInputFormat.setInputPaths(job, new Path("E:\\learning\\04_java\\02_大数据资料\\00_hadoop\\资料\\07_测试数据\\reducejoin"));
+        FileOutputFormat.setOutputPath(job, new Path("E:\\learning\\04_java\\02_大数据资料\\00_hadoop\\out\\data4"));
+
+
+        job.waitForCompletion(true);
+    }
+}
+```
+
+#### 3.3.3 Map Join
+
+- MapJoin概念
+
+  考虑MR整体的执行效率，且业务场景是一个大文件和一个小文件进行关联操作，可以使用MapJoin来实现。另外MapJoin也是解决ReduceJoin数据倾斜问题很有效的办法。  
+
+- MapJoin的思想：
+     ①：分析文件之间的关系，然后定位关联字段
+     ②：将小文件的数据映射到内存中的一个容器维护起来。 
+     ③：当MapTask处理大文件的数据时，每读取一行数据，就根据当前行中的关联字段到内存的容器里获取对象的信息。
+     ④：封装结果将其输出
+
+**1）使用场景**
+
+Map Join适用于一张表十分小、一张表很大的场景。
+
+**2）优点**
+
+思考：在Reduce端处理过多的表，非常容易产生数据倾斜。怎么办？
+
+在Map端缓存多张表，提前处理业务逻辑，这样增加Map端业务，减少Reduce端数据的压力，尽可能的减少数据倾斜。
+
+**3）具体办法：采用DistributedCache**
+
+​    （1）在Mapper的setup阶段，将文件读取到缓存集合中。
+
+​    （2）在Driver驱动类中加载缓存。
+
+```java
+//缓存普通文件到Task运行节点。
+job.addCacheFile(new URI("file:///e:/cache/pd.txt"));
+//如果是集群运行,需要设置HDFS路径
+job.addCacheFile(new URI("hdfs://hadoop102:9820/cache/pd.txt"));
+```
+
+#### 3.3.4 Map Join案例实操
+
+**1）需求分析**
+
+MapJoin适用于关联表中有小表的情形。
+
+![](.\picture\Map端表合并案例分析（Distributedcache）.png)
+
+**2）代码实现**
+
+（1）先在MapJoinDriver驱动类中添加缓存文件
+
+```java
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.NullWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+
+import java.io.IOException;
+import java.net.URI;
+
+/**
+ * Created with IntelliJ IDEA.
+ *
+ * @Author: Xu1Aan
+ * @Date: 2022/03/24/10:26
+ * @Description:
+ */
+public class MapJoinDriver {
+    public static void main(String[] args) throws IOException, InterruptedException, ClassNotFoundException {
+        Configuration conf = new Configuration();
+        Job job = Job.getInstance(conf);
+        job.setMapperClass(MapJoinMapper.class);
+        job.setMapOutputKeyClass(Text.class);
+        job.setOutputValueClass(NullWritable.class);
+
+        job.setOutputKeyClass(Text.class);
+        job.setOutputValueClass(NullWritable.class);
+
+        //设置缓存文件路径
+        job.addCacheFile(URI.create("file:///E:/learning/04_java/02_大数据资料/00_hadoop/资料/07_测试数据/cachefile/pd.txt"));
+
+        job.setNumReduceTasks(0);
+
+        FileInputFormat.setInputPaths(job, new Path("E:\\learning\\04_java\\02_大数据资料\\00_hadoop\\资料\\07_测试数据\\mapjoin"));
+        FileOutputFormat.setOutputPath(job, new Path("E:\\learning\\04_java\\02_大数据资料\\00_hadoop\\out\\data7"));
+
+        job.waitForCompletion(true);
+
+    }
+}
+```
+
+（2）在MapJoinMapper类中的setup方法中读取缓存文件
+
+```java
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.IOUtils;
+import org.apache.hadoop.io.LongWritable;
+import org.apache.hadoop.io.NullWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Mapper;
+
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.URI;
+import java.util.HashMap;
+
+/**
+ * Created with IntelliJ IDEA.
+ *
+ * @Author: Xu1Aan
+ * @Date: 2022/03/24/10:26
+ * @Description:
+ * 1.处理缓存文件：将job中设置的缓存路径获取到
+ * 2.根据缓存路径再结合输入流把pd.txt内容写入内存的容器中
+ */
+public class MapJoinMapper extends Mapper<LongWritable, Text, Text, NullWritable>{
+
+    private  HashMap<String,String> productMap = new HashMap<String,String>();
+
+    private  Text outKey = new Text();
+
+    /**
+     * 处理缓存文件
+     * @param context
+     * @throws IOException
+     * @throws InterruptedException
+     */
+    @Override
+    protected void setup(Mapper<LongWritable, Text, Text, NullWritable>.Context context) throws IOException, InterruptedException {
+        //将job中设置的缓存路径获取到
+        URI[] cacheFiles = context.getCacheFiles();
+        URI cacheFile = cacheFiles[0];
+        //准备输入流对象
+        FileSystem fileSystem = FileSystem.get(context.getConfiguration());
+        FSDataInputStream productIn = fileSystem.open(new Path(cacheFile));
+        //通过流对象将数据读入，保存到内存的Map中
+        BufferedReader reader = new BufferedReader(new InputStreamReader(productIn, "UTF-8"));
+        //按行读取
+        String line;
+        while((line= reader.readLine())!=null){
+            //保存在Map中
+            String[] datas = line.split("\t");
+            productMap.put(datas[0],datas[1]);
+        }
+
+        //关闭资源
+        IOUtils.closeStream(reader);
+    }
+
+    /**
+     * 处理mapJoin逻辑
+     * @param key
+     * @param value
+     * @param context
+     * @throws IOException
+     * @throws InterruptedException
+     */
+    @Override
+    protected void map(LongWritable key, Text value, Mapper<LongWritable, Text, Text, NullWritable>.Context context) throws IOException, InterruptedException {
+        //获取当前行数据
+        String lineData = value.toString();
+        //切割
+        String[] orderData = lineData.split("\t");
+        //进行数据关联获取productName
+        String productName = productMap.get(orderData[1]);
+        //封装结果
+        String result = orderData[0] + "\t" + productName +"\t" + orderData[2];
+        outKey.set(result);
+        //将结果写出
+        context.write(outKey,NullWritable.get());
+    }
+}
+```
+
+### 3.5 计数器与数据清洗(ETL)
+
+#### 3.5.1 计数器的应用
+
+Hadoop为每个作业维护若干内置计数器，以描述多项指标。例如，某些计数器记录已处理的字节数和记录数，使用户可监控已处理的输入数据量和已产生的输出数据量。
+
+1. 计数器API
+
+   （1）采用枚举的方式统计计数
+
+   ```java
+   enum MyCounter{MALFORORMED,NORMAL}
+   //对枚举定义的自定义计数器加1
+   context.getCounter(MyCounter.MALFORORMED).increment(1);
+   ```
+
+   （2）采用计数器组、计数器名称的方式统计
+
+   ```java
+   context.getCounter("counterGroup", "counter").increment(1);
+   ```
+
+   组名和计数器名称随便起，但最好有意义。
+
+   （3）计数结果在程序运行后的控制台上查看。
+
+2. 计数器案例实操
+
+   详见数据清洗案例。
+
+3.5.2 数据清洗(ETL)
