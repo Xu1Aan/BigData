@@ -2671,3 +2671,195 @@ Combiner合并可以提高程序执行效率，减少IO传输。但是使用时�
 Yarn是一个资源调度平台，负责为运算程序提供服务器运算资源，相当于一个分布式的操作系统平台，而MapReduce等运算程序则相当于运行于操作系统之上的应用程序。
 
 ### 4.1 Yarn工作流程
+
+#### 4.1.1 Yarn基本架构
+
+YARN主要由ResourceManager、NodeManager、ApplicationMaster和Container等组件构成。
+
+![](.\picture\YARN架构.png)
+
+#### 4.1.2 Yarn工作机制
+
+![](.\picture\YARN工作机制.png)
+
+​    （1）MR程序提交到客户端所在的节点。
+
+​    （2）YarnRunner向ResourceManager申请一个Application。
+
+​    （3）RM将该应用程序的资源路径返回给YarnRunner。
+
+​    （4）该程序将运行所需资源提交到HDFS上。
+
+​    （5）程序资源提交完毕后，申请运行mrAppMaster。
+
+​    （6）RM将用户的请求初始化成一个Task。
+
+​    （7）其中一个NodeManager领取到Task任务。
+
+​    （8）该NodeManager创建容器Container，并产生MRAppmaster。
+
+​    （9）Container从HDFS上拷贝资源到本地。
+
+​    （10）MRAppmaster向RM 申请运行MapTask资源。
+
+​    （11）RM将运行MapTask任务分配给另外两个NodeManager，另两个NodeManager分别领取任务并创建容器。
+
+​    （12）MR向两个接收到任务的NodeManager发送程序启动脚本，这两个NodeManager分别启动MapTask，MapTask对数据分区排序。
+
+（13）MrAppMaster等待所有MapTask运行完毕后，向RM申请容器，运行ReduceTask。
+
+​    （14）ReduceTask向MapTask获取相应分区的数据。
+
+​    （15）程序运行完毕后，MR会向RM申请注销自己。
+
+#### 4.1.3 作业提交全过程
+
+![](.\picture\YARN工作流程.png)
+
+作业提交全过程详解
+
+（1）作业提交
+
+第1步：Client调用job.waitForCompletion方法，向整个集群提交MapReduce作业。
+
+第2步：Client向RM申请一个作业id。
+
+第3步：RM给Client返回该job  资源的提交路径和作业id。
+
+第4步：Client提交jar包、切片信息和配置文件到指定的资源提交路径。
+
+第5步：Client提交完资源后，向RM申请运行MrAppMaster。
+
+（2）作业初始化
+
+第6步：当RM收到Client的请求后，将该job添加到容量调度器中。
+
+第7步：某一个空闲的NM领取到该Job。
+
+第8步：该NM创建Container，并产生MRAppmaster。
+
+第9步：下载Client提交的资源到本地。
+
+（3）任务分配
+
+第10步：MrAppMaster向RM申请运行多个MapTask任务资源。
+
+第11步：RM将运行MapTask任务分配给另外两个NodeManager，另两个NodeManager分别领取任务并创建容器。
+
+（4）任务运行
+
+第12步：MR向两个接收到任务的NodeManager发送程序启动脚本，这两个NodeManager分别启动MapTask，MapTask对数据分区排序。
+
+第13步：MrAppMaster等待所有MapTask运行完毕后，向RM申请容器，运行ReduceTask。
+
+第14步：ReduceTask向MapTask获取相应分区的数据。
+
+第15步：程序运行完毕后，MR会向RM申请注销自己。
+
+（5）进度和状态更新
+
+YARN中的任务将其进度和状态(包括counter)返回给应用管理器, 客户端每秒(通过mapreduce.client.progressmonitor.pollinterval设置)向应用管理器请求进度更新, 展示给用户。
+
+（6）作业完成
+
+除了向应用管理器请求作业进度外, 客户端每5秒都会通过调用waitForCompletion()来检查作业是否完成。时间间隔可以通过mapreduce.client.completion.pollinterval来设置。作业完成之后, 应用管理器和Container会清理工作状态。作业的信息会被作业历史服务器存储以备之后用户核查。
+
+![](.\picture\作业提交过程之MapReduce.png)
+
+### 4.2 资源调度器
+
+目前，Hadoop作业调度器主要有三种：FIFO、Capacity Scheduler和Fair Scheduler。Hadoop3.1.3默认的资源调度器是Capacity Scheduler。
+
+1. Hadoop1.x 版本（没有Yarn的存在）--> MR自己负责资源调度-- 出于MR执行效率不高，很大程度就是资源分配环节拖慢的考虑市面上出现 -- mesos 架构 同时为了推广 mesos 发明了Spark，在此影响下，Hadoop团队发明 Yarn 。
+
+2. Hadoop2.x 版本 推出了Yarn结构（把MR程序运行的时候资源调度工作分离出处）
+
+具体设置详见：yarn-default.xml文件
+
+```xml
+<property>
+    <description>The class to use as the resource scheduler.</description>
+    <name>yarn.resourcemanager.scheduler.class</name>
+<value>org.apache.hadoop.yarn.server.resourcemanager.scheduler.capacity.CapacityScheduler</value>
+</property>
+```
+
+**1）先进先出调度器（FIFO）**
+
+![](.\picture\FIFO调度器.png)
+
+Hadoop最初设计目的是支持大数据批处理作业，如日志挖掘、Web索引等作业，
+
+为此，Hadoop仅提供了一个非常简单的调度机制：FIFO，即先来先服务，在该调度机制下，所有作业被统一提交到一个队列中，Hadoop按照提交顺序依次运行这些作业。
+
+但随着Hadoop的普及，单个Hadoop集群的用户量越来越大，不同用户提交的应用程序往往具有不同的服务质量要求，典型的应用有以下几种：
+
+批处理作业：这种作业往往耗时较长，对时间完成一般没有严格要求，如数据挖掘、机器学习等方面的应用程序。
+
+交互式作业：这种作业期望能及时返回结果，如SQL查询（Hive）等。
+
+生产性作业：这种作业要求有一定量的资源保证，如统计值计算、垃圾数据分析等。
+
+此外，这些应用程序对硬件资源需求量也是不同的，如过滤、统计类作业一般为CPU密集型作业，而数据挖掘、机器学习作业一般为I/O密集型作业。因此，简单的FIFO调度策略不仅不能满足多样化需求，也不能充分利用硬件资源。
+
+**2）容量调度器（Capacity Scheduler）**
+
+![](.\picture\容量调度器.png)
+
+Capacity Scheduler Capacity Scheduler 是Yahoo开发的多用户调度器，它以队列为单位划分资源，每个队列可设定一定比例的资源最低保证和使用上限，同时，每个用户也可设定一定的资源使用上限以防止资源滥用。而当一个队列的资源有剩余时，可暂时将剩余资源共享给其他队列。
+
+​    总之，Capacity Scheduler 主要有以下几个特点：
+
+①容量保证。管理员可为每个队列设置资源最低保证和资源使用上限，而所有提交到该队列的应用程序共享这些资源。
+
+②灵活性，如果一个队列中的资源有剩余，可以暂时共享给那些需要资源的队列，而一旦该队列有新的应用程序提交，则其他队列借调的资源会归还给该队列。这种资源灵活分配的方式可明显提高资源利用率。
+
+③多重租赁。支持多用户共享集群和多应用程序同时运行。为防止单个应用程序、用户或者队列独占集群中的资源，管理员可为之增加多重约束（比如单个应用程序同时运行的任务数等）。
+
+④安全保证。每个队列有严格的ACL列表规定它的访问用户，每个用户可指定哪些用户允许查看自己应用程序的运行状态或者控制应用程序（比如杀死应用程序）。此外，管理员可指定队列管理员和集群系统管理员。
+
+⑤动态更新配置文件。管理员可根据需要动态修改各种配置参数，以实现在线集群管理。
+
+**3）公平调度器（Fair Scheduler）（了解）**
+
+![](.\picture\公平调度器.png)
+
+![](.\picture\公平调度器一.png)
+
+Fair Scheduler Fair Schedulere是Facebook开发的多用户调度器。
+
+​    公平调度器的目的是让所有的作业随着时间的推移，都能平均地获取等同的共享资源。当有作业提交上来，系统会将空闲的资源分配给新的作业，每个任务大致上会获取平等数量的资源。和传统的调度策略不同的是它会让小的任务在合理的时间完成，同时不会让需要长时间运行的耗费大量资源的任务挨饿！
+
+​    同Capacity Scheduler类似，它以队列为单位划分资源，每个队列可设定一定比例的资源最低保证和使用上限，同时，每个用户也可设定一定的资源使用上限以防止资源滥用；当一个队列的资源有剩余时，可暂时将剩余资源共享给其他队列。
+
+​    当然，Fair Scheduler也存在很多与Capacity Scheduler不同之处，这主要体现在以下几个方面：
+
+①  资源公平共享。在每个队列中，Fair Scheduler 可选择按照FIFO、Fair或DRF策略为应用程序分配资源。其中，
+
+**FIFO策略**
+
+公平调度器每个队列资源分配策略如果选择FIFO的话，就是禁用掉每个队列中的Task共享队列资源，此时公平调度器相当于上面讲过的容量调度器。
+
+**Fair策略**
+
+Fair 策略(默认)是一种基于最大最小公平算法实现的资源多路复用方式，默认情况下，每个队列内部采用该方式分配资源。这意味着，如果一个队列中有两个应用程序同时运行，则每个应用程序可得到1/2的资源；如果三个应用程序同时运行，则每个应用程序可得到1/3的资源。
+
+**DRF策略**
+
+DRF(Dominant Resource Fairness)，我们之前说的资源，都是单一标准，例如只考虑内存(也是yarn默认的情况)。但是很多时候我们资源有很多种，例如内存，CPU，网络带宽等，这样我们很难衡量两个应用应该分配的资源比例。
+
+那么在YARN中，我们用DRF来决定如何调度：假设集群一共有100 CPU和10T 内存，而应用A需要(2 CPU, 300GB)，应用B需要(6 CPU, 100GB)。则两个应用分别需要A(2%CPU, 3%内存)和B(6%CPU, 1%内存)的资源，这就意味着A是内存主导的, B是CPU主导的，针对这种情况，我们可以选择DRF策略对不同应用进行不同资源（CPU和内存）的一个不同比例的限制。 
+
+②支持资源抢占。当某个队列中有剩余资源时，调度器会将这些资源共享给其他队列，而当该队列中有新的应用程序提交时，调度器要为它回收资源。为了尽可能降低不必要的计算浪费，调度器采用了先等待再强制回收的策略，即如果等待一段时间后尚有未归还的资源，则会进行资源抢占：从那些超额使用资源的队列中杀死一部分任务，进而释放资源。
+
+yarn.scheduler.fair.preemption=true 通过该配置开启资源抢占。
+
+③提高小应用程序响应时间。由于采用了最大最小公平算法，小作业可以快速获取资源并运行完成
+
+### 4.3 容量调度器多队列提交案例
+
+**1)需求分析**
+
+Yarn默认的容量调度器是一条单队列的调度器，在实际使用中会出现单个任务阻塞整个队列的情况。同时，随着业务的增长，公司需要分业务限制集群使用率。这就需要我们按照业务种类配置多条任务队列。
+
+**配置多队列的容量调度器**
