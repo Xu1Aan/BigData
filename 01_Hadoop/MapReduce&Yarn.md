@@ -2858,8 +2858,344 @@ yarn.scheduler.fair.preemption=true 通过该配置开启资源抢占。
 
 ### 4.3 容量调度器多队列提交案例
 
-**1)需求分析**
+**1)需求**
 
 Yarn默认的容量调度器是一条单队列的调度器，在实际使用中会出现单个任务阻塞整个队列的情况。同时，随着业务的增长，公司需要分业务限制集群使用率。这就需要我们按照业务种类配置多条任务队列。
 
+**2)操作**
+
+将`/opt/module/hadoop-3.1.3/etc/hadoop`的`capacity-scheduler.xml`下载到本地
+
+```shell
+sz capacity-scheduler.xml
+```
+
 **配置多队列的容量调度器**
+
+默认Yarn的配置下，容量调度器只有一条Default队列。在`capacity-scheduler.xml`中可以配置多条队列，并降低default队列资源占比：
+
+```xml
+<!--
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License. See accompanying LICENSE file.
+-->
+<configuration>
+
+<!-- 指定当前yarn集群的队列中可以最大能容纳job的数量-->
+  <property>
+    <name>yarn.scheduler.capacity.maximum-applications</name>
+    <value>10000</value>
+    <description>
+      Maximum number of applications that can be pending and running.
+    </description>
+  </property>
+
+<!-- 指定一个job能够最大占用集群的资源的百分比-->
+  <property>
+    <name>yarn.scheduler.capacity.maximum-am-resource-percent</name>
+    <value>0.1</value>
+    <description>
+      Maximum percent of resources in the cluster which can be used to run 
+      application masters i.e. controls number of concurrent running
+      applications.
+    </description>
+  </property>
+
+<!-- 一个默认资源计算器只使用内存-->
+  <property>
+    <name>yarn.scheduler.capacity.resource-calculator</name>
+    <value>org.apache.hadoop.yarn.util.resource.DefaultResourceCalculator</value>
+    <description>
+      The ResourceCalculator implementation to be used to compare 
+      Resources in the scheduler.
+      The default i.e. DefaultResourceCalculator only uses Memory while
+      DominantResourceCalculator uses dominant-resource to compare 
+      multi-dimensional resources such as Memory, CPU etc.
+    </description>
+  </property>
+
+<!-- 配置自定义队列-->
+  <property>
+    <name>yarn.scheduler.capacity.root.queues</name>
+    <value>default,hello</value>
+    <description>
+      The queues at the this level (root is the root queue).
+    </description>
+  </property>
+
+<!-- 指定集群中各个队列的额定容量-->
+  <property>
+    <name>yarn.scheduler.capacity.root.default.capacity</name>
+    <value>40</value>
+    <description>Default queue target capacity.</description>
+  </property>
+  <property>
+    <name>yarn.scheduler.capacity.root.hello.capacity</name>
+    <value>60</value>
+    <description>Default queue target capacity.</description>
+  </property>
+
+<!-- 指定不同用户提交job占用集群资源的百分比-->
+  <property>
+    <name>yarn.scheduler.capacity.root.default.user-limit-factor</name>
+    <value>1</value>
+    <description>
+      Default queue user limit a percentage from 0.0 to 1.0.
+    </description>
+  </property>
+  <property>
+    <name>yarn.scheduler.capacity.root.hello.user-limit-factor</name>
+    <value>1</value>
+    <description>
+      Default queue user limit a percentage from 0.0 to 1.0.
+    </description>
+  </property>
+
+<!--  指定集群中每个队列的最大容量-->
+  <property>
+    <name>yarn.scheduler.capacity.root.default.maximum-capacity</name>
+    <value>60</value>
+    <description>
+      The maximum capacity of the default queue. 
+    </description>
+  </property>
+  <property>
+    <name>yarn.scheduler.capacity.root.hello.maximum-capacity</name>
+    <value>80</value>
+    <description>
+      The maximum capacity of the default queue.
+    </description>
+  </property>
+
+<!-- 指定队列工作状态-->
+  <property>
+    <name>yarn.scheduler.capacity.root.default.state</name>
+    <value>RUNNING</value>
+    <description>
+      The state of the default queue. State can be one of RUNNING or STOPPED.
+    </description>
+  </property>
+  <property>
+    <name>yarn.scheduler.capacity.root.hello.state</name>
+    <value>RUNNING</value>
+    <description>
+      The state of the default queue. State can be one of RUNNING or STOPPED.
+    </description>
+  </property>
+
+<!-- 指定当前队列可以允许哪些用户可以提交job-->
+  <property>
+    <name>yarn.scheduler.capacity.root.default.acl_submit_applications</name>
+    <value>*</value>
+    <description>
+      The ACL of who can submit jobs to the default queue.
+    </description>
+  </property>
+  <property>
+    <name>yarn.scheduler.capacity.root.hello.acl_submit_applications</name>
+    <value>*</value>
+    <description>
+      The ACL of who can submit jobs to the default queue.
+    </description>
+  </property>
+
+<!-- 指定当前队列的拥有权限的用户-->
+  <property>
+    <name>yarn.scheduler.capacity.root.default.acl_administer_queue</name>
+    <value>*</value>
+    <description>
+      The ACL of who can administer jobs on the default queue.
+    </description>
+  </property>
+  <property>
+    <name>yarn.scheduler.capacity.root.hello.acl_administer_queue</name>
+    <value>*</value>
+    <description>
+      The ACL of who can administer jobs on the default queue.
+    </description>
+  </property>
+
+<!-- 指定当前队列中可提交优先级job的所属用户-->
+  <property>
+    <name>yarn.scheduler.capacity.root.default.acl_application_max_priority</name>
+    <value>*</value>
+    <description>
+      The ACL of who can submit applications with configured priority.
+      For e.g, [user={name} group={name} max_priority={priority} default_priority={priority}]
+    </description>
+  </property>
+  <property>
+    <name>yarn.scheduler.capacity.root.hello.acl_application_max_priority</name>
+    <value>*</value>
+    <description>
+      The ACL of who can submit applications with configured priority.
+      For e.g, [user={name} group={name} max_priority={priority} default_priority={priority}]
+    </description>
+  </property>
+
+<!-- 指定当前队列中job最大存活时间-->
+   <property>
+     <name>yarn.scheduler.capacity.root.default.maximum-application-lifetime
+     </name>
+     <value>-1</value>
+     <description>
+        Maximum lifetime of an application which is submitted to a queue
+        in seconds. Any value less than or equal to zero will be considered as
+        disabled.
+        This will be a hard time limit for all applications in this
+        queue. If positive value is configured then any application submitted
+        to this queue will be killed after exceeds the configured lifetime.
+        User can also specify lifetime per application basis in
+        application submission context. But user lifetime will be
+        overridden if it exceeds queue maximum lifetime. It is point-in-time
+        configuration.
+        Note : Configuring too low value will result in killing application
+        sooner. This feature is applicable only for leaf queue.
+     </description>
+   </property>
+  <property>
+    <name>yarn.scheduler.capacity.root.hello.maximum-application-lifetime
+    </name>
+    <value>-1</value>
+    <description>
+      Maximum lifetime of an application which is submitted to a queue
+      in seconds. Any value less than or equal to zero will be considered as
+      disabled.
+      This will be a hard time limit for all applications in this
+      queue. If positive value is configured then any application submitted
+      to this queue will be killed after exceeds the configured lifetime.
+      User can also specify lifetime per application basis in
+      application submission context. But user lifetime will be
+      overridden if it exceeds queue maximum lifetime. It is point-in-time
+      configuration.
+      Note : Configuring too low value will result in killing application
+      sooner. This feature is applicable only for leaf queue.
+    </description>
+  </property>
+
+  <!-- 指定当前队列中job默认存活时间-->
+   <property>
+     <name>yarn.scheduler.capacity.root.default.default-application-lifetime
+     </name>
+     <value>-1</value>
+     <description>
+        Default lifetime of an application which is submitted to a queue
+        in seconds. Any value less than or equal to zero will be considered as
+        disabled.
+        If the user has not submitted application with lifetime value then this
+        value will be taken. It is point-in-time configuration.
+        Note : Default lifetime can't exceed maximum lifetime. This feature is
+        applicable only for leaf queue.
+     </description>
+   </property>
+  <property>
+    <name>yarn.scheduler.capacity.root.hello.default-application-lifetime
+    </name>
+    <value>-1</value>
+    <description>
+      Default lifetime of an application which is submitted to a queue
+      in seconds. Any value less than or equal to zero will be considered as
+      disabled.
+      If the user has not submitted application with lifetime value then this
+      value will be taken. It is point-in-time configuration.
+      Note : Default lifetime can't exceed maximum lifetime. This feature is
+      applicable only for leaf queue.
+    </description>
+  </property>
+
+  <property>
+    <name>yarn.scheduler.capacity.node-locality-delay</name>
+    <value>40</value>
+    <description>
+      Number of missed scheduling opportunities after which the CapacityScheduler 
+      attempts to schedule rack-local containers.
+      When setting this parameter, the size of the cluster should be taken into account.
+      We use 40 as the default value, which is approximately the number of nodes in one rack.
+      Note, if this value is -1, the locality constraint in the container request
+      will be ignored, which disables the delay scheduling.
+    </description>
+  </property>
+
+  <property>
+    <name>yarn.scheduler.capacity.rack-locality-additional-delay</name>
+    <value>-1</value>
+    <description>
+      Number of additional missed scheduling opportunities over the node-locality-delay
+      ones, after which the CapacityScheduler attempts to schedule off-switch containers,
+      instead of rack-local ones.
+      Example: with node-locality-delay=40 and rack-locality-delay=20, the scheduler will
+      attempt rack-local assignments after 40 missed opportunities, and off-switch assignments
+      after 40+20=60 missed opportunities.
+      When setting this parameter, the size of the cluster should be taken into account.
+      We use -1 as the default value, which disables this feature. In this case, the number
+      of missed opportunities for assigning off-switch containers is calculated based on
+      the number of containers and unique locations specified in the resource request,
+      as well as the size of the cluster.
+    </description>
+  </property>
+
+  <property>
+    <name>yarn.scheduler.capacity.queue-mappings</name>
+    <value></value>
+    <description>
+      A list of mappings that will be used to assign jobs to queues
+      The syntax for this list is [u|g]:[name]:[queue_name][,next mapping]*
+      Typically this list will be used to map users to queues,
+      for example, u:%user:%user maps all users to queues with the same name
+      as the user.
+    </description>
+  </property>
+
+  <property>
+    <name>yarn.scheduler.capacity.queue-mappings-override.enable</name>
+    <value>false</value>
+    <description>
+      If a queue mapping is present, will it override the value specified
+      by the user? This can be used by administrators to place jobs in queues
+      that are different than the one specified by the user.
+      The default is false.
+    </description>
+  </property>
+
+  <property>
+    <name>yarn.scheduler.capacity.per-node-heartbeat.maximum-offswitch-assignments</name>
+    <value>1</value>
+    <description>
+      Controls the number of OFF_SWITCH assignments allowed
+      during a node's heartbeat. Increasing this value can improve
+      scheduling rate for OFF_SWITCH containers. Lower values reduce
+      "clumping" of applications on particular nodes. The default is 1.
+      Legal values are 1-MAX_INT. This config is refreshable.
+    </description>
+  </property>
+
+
+  <property>
+    <name>yarn.scheduler.capacity.application.fail-fast</name>
+    <value>false</value>
+    <description>
+      Whether RM should fail during recovery if previous applications'
+      queue is no longer valid.
+    </description>
+  </property>
+
+</configuration>
+
+```
+
+以wordcount为例，将wordDriver中添加
+
+```java
+//指定当前job提交队列名称
+conf.set("mapreduce.job.queuename","hello");
+```
+
