@@ -84,8 +84,8 @@ MapReduce将计算过程分为两个阶段：Map和Reduce
 2）Reduce阶段对Map结果进行汇总
 
 - MapReduce（hadoop的组成部分，主要负责数据的计算分析）	
-  	  - Map阶段：就是把需要计算的数据按照需求分成多个MapTask任务来执行
-        	  - Reduce阶段: 把Map阶段处理完的结果拷贝过来根据需求进行汇总计算
+     - Map阶段：就是把需要计算的数据按照需求分成多个MapTask任务来执行
+     - Reduce阶段: 把Map阶段处理完的结果拷贝过来根据需求进行汇总计算
 
 ### 2.4 大数据技术生态体系
 
@@ -416,7 +416,7 @@ cat wcoutput/part-r-00000
 
 将克隆出来的虚拟机修改静态ip，主机名称。[见 3.2](#3.2 准备hadoop102 机器（通过克隆模板机的方式创建）)
 
-#### 4.2.2 编写集群分发脚本xsync
+#### 4.2.2 编写集群分发脚本my_rsync
 
 ##### scp（secure copy）安全拷贝
 
@@ -518,7 +518,7 @@ rsync -av xu1an@hadoop102:/opt/software/* /opt/software/
 
 1. 在`/home/xu1an/bin`目录下创建`my_rsync文件`
 
-   ```
+   ```shell
    #可以用echo $PATH查看系统变量
    cd /home/xu1an #此时该目录下并无bin目录，需要创建bin
    echo $PATH #可以发现Linux系统在创建xu1an用户后，为用户添加了/home/xu1an/bin系统变量地址
