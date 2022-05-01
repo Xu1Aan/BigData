@@ -16,10 +16,13 @@
 
   - [优化&新特性&HA](./01_Hadoop/Hadoop优化&新特性.md)
 - [x] Zookeeper
-  - [Zookeeper](./02_Zookeeper)
+  - [Zookeeper](./02_Zookeeper/Zookeeper.md)
 - [ ] Hive
+  - [Hive](./03_Hive)
 - [ ] Flume
+  - [Flume](./04_Flume)
 - [ ] Kaflka
+  - [Kaflka](./05_Kaflka)
 - [ ] HBase
 - [ ] Scala
 - [ ] Spark
@@ -37,7 +40,7 @@
 
 - [ ] 工作招聘推荐系统（计划）
 
-  预计开发技术：Hadoop、HDFS、Spark、SpringBoot、echarts、PySpark、Python、MySQL、Vue
+  预计开发技术：Hadoop、Spark、SpringBoot、echarts、PySpark、Python、MySQL、Vue
 
 - [ ] 待续...
 
