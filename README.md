@@ -24,6 +24,7 @@
 - [ ] Kaflka
   - [Kaflka](./05_Kaflka)
 - [ ] HBase
+  - [HBase](./06_HBase)
 - [ ] Scala
 - [ ] Spark
 - [ ] Flink
