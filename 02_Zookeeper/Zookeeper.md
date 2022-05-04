@@ -859,3 +859,132 @@ public void testDeleteAll() throws KeeperException, InterruptedException {
 ---
 
 ## 4 Zookeeper内部原理
+
+### 4.1 节点类型
+
+![](E:\learning\04_java\01_笔记\BigData\02_Zookeeper\picture\节点类型.png)
+
+### 4.2 Stat结构体
+
+（1）**czxid-创建节点的事务zxid**
+
+每次修改ZooKeeper状态都会收到一个zxid形式的时间戳，也就是ZooKeeper事务ID。
+
+事务ID是ZooKeeper中所有修改总的次序。每个修改都有唯一的zxid，如果zxid1小于zxid2，那么zxid1在zxid2之前发生。
+
+（2）ctime - znode被创建的毫秒数(从1970年开始)
+
+（3）mzxid - znode最后更新的事务zxid
+
+（4）mtime - znode最后修改的毫秒数(从1970年开始)
+
+（5）pZxid-znode最后更新的子节点zxid
+
+（6）cversion - znode子节点变化号，znode子节点修改次数
+
+（7）**dataversion - znode数据变化号**
+
+（8）aclVersion - znode访问控制列表的变化号
+
+（9）ephemeralOwner- 如果是临时节点，这个是znode拥有者的session id。如果不是临时节点则是0。
+
+**（10）dataLength- znode的数据长度**
+
+**（11）numChildren - znode子节点数量** 
+
+### 4.3 监听器原理（面试重点） 
+
+![](E:\learning\04_java\01_笔记\BigData\02_Zookeeper\picture\监听器原理.png)
+
+### 4.4 选举机制（面试重点）
+
+（1）半数机制：集群中半数以上机器存活，集群可用。所以Zookeeper适合安装奇数台服务器。
+
+（2）Zookeeper虽然在配置文件中并没有指定Master和Slave。但是，Zookeeper工作时，是有一个节点为Leader，其他则为Follower，Leader是通过内部的选举机制临时产生的。
+
+（3）以一个简单的例子来说明整个选举的过程。
+
+假设有五台服务器组成的Zookeeper集群，它们的id从1-5，同时它们都是最新启动的，也就是没有历史数据，在存放数据量这一点上，都是一样的。假设这些服务器依序启动，来看看会发生什么。
+
+![](E:\learning\04_java\01_笔记\BigData\02_Zookeeper\picture\选举机制.png)
+
+（1）服务器1启动，发起一次选举。服务器1投自己一票。此时服务器1票数一票，不够半数以上（3票），选举无法完成，服务器1状态保持为LOOKING；
+
+（2）服务器2启动，再发起一次选举。服务器1和2分别投自己一票并交换选票信息：此时服务器1发现服务器2的ID比自己目前投票推举的（服务器1）大，更改选票为推举服务器2。此时服务器1票数0票，服务器2票数2票，没有半数以上结果，选举无法完成，服务器1，2状态保持LOOKING
+
+（3）服务器3启动，发起一次选举。此时服务器1和2都会更改选票为服务器3。此次投票结果：服务器1为0票，服务器2为0票，服务器3为3票。此时服务器3的票数已经超过半数，服务器3当选Leader。服务器1，2更改状态为FOLLOWING，服务器3更改状态为LEADING；
+
+（4）服务器4启动，发起一次选举。此时服务器1，2，3已经不是LOOKING状态，不会更改选票信息。交换选票信息结果：服务器3为3票，服务器4为1票。此时服务器4服从多数，更改选票信息为服务器3，并更改状态为FOLLOWING；
+
+（5）服务器5启动，同4一样当小弟。
+
+```
+1. 选举机制总原则：集群中的每台机器都参与投票，通过交换选票得到每台机器的最终得票，
+      一旦出现得票数超过机器总数一半以上数量，当前机器即为leader。
+	  
+2.举例说明1
+       场景：以5台机器为例，集群的机器顺时启动，当前集群中没有任何数据。
+	   
+	   ①. server1 启动，首先server1给自己投一票，然后看当前票数是否超过半数，结果没有超过，
+	      这时候leader就没选出来，当前选举状态是Locking状态。
+		  
+	   ②. server2 启动，首先server2先给自己投一票，因为当前集群已经有两台机器已启动，所以server1
+	      server2会交换选票，交换后发现各自有一票，接下来比较myid 发现server2的myid值 > server1的myid值
+		  此时server2胜出，最后server2有两票。最后再看当前票数是否半，发现未过半，集群的选举状态
+		  集训保持locking状态。
+		
+	   ③. server3启动， 首先自己投自己一票，server1和server2也会投自己一票，然后交换选票发现都一样，
+	      接着比较myid 最后server3胜出，此时server3就有3票，同时server3的票数超过半数。所以server3成为
+		  leader。
+		  
+	   ④. server4启动，发现当前集群已经有leader 它自己自动成为follower
+	   
+	   ⑤. server5启动，发现当前集群已经有leader 它自己自动成为follower
+	   
+	   
+3. 举例说明2
+	    场景：以5台机器为例，当前集群正在使用（有数据/没数据），leader突然宕机的情况。
+		   
+		当集群中的leader挂掉，集群会重新选出一个leader，此时首先会比较每一台机器的czxid,
+		czxid最大的被选为leader。极端情况，czxid都相等的情况，那么就会直接比较myid。
+```
+
+七、一般情况下ZK集群更推荐使用奇数台机器原因？
+    在ZK集群中 奇数台 和 偶数台（接近的台数） 机器的容错能力是一样的，所以在考虑资源节省的情况，我们推荐使用奇数台方案
+
+### 4.5 写数据流程
+
+![](E:\learning\04_java\01_笔记\BigData\02_Zookeeper\picture\写数据流程.png)
+
+	ZK的写数据流程
+	1. 客户端会向ZK集群中的一台机器server1发送写数据的请求。
+	2. server1接收到请求后，马上会通知leader 有写数据的请求来了
+	3. leader拿到请求后，进行广播，让集群每一台机器都准备要写数据
+	4. 集群中的所有机机器接收到leader广播后都回应一下leader
+	5. leader再次进行广播 开始写数据，其他机器接收到广播后也开始写数据
+	6. 数据成功写入后，回应leader，最后由leader来做整个事务提交
+	7. 当数据成功写入后，有最初和客户端发生连接的 server1 回应客户端数据写入成功。
+
+---
+
+## 5 企业面试真题
+
+### 5.1 请简述ZooKeeper的选举机制
+
+详见4.4。
+
+### 5.2 ZooKeeper的监听原理是什么？
+
+详见4.3。
+
+### 5.3 ZooKeeper的部署方式有哪几种？集群中的角色有哪些？集群最少需要几台机器？
+
+（1）部署方式单机模式、集群模式
+
+（2）角色：Leader和Follower
+
+（3）集群最少需要机器数：3
+
+### 5.4 ZooKeeper的常用命令
+
+ls create get delete set…

@@ -657,7 +657,7 @@ HDFS集群单个NN场景下。NN如果故障了，整个HDFS集群就不可用�
 
   JournalNode:本身自己也要搭建成一个集群的状态，他和Zookeeper集群很像，存活机器数量过半，就能正常提供服务。它主要负责编辑日志文件的内容的共享。
 
-#### 4.1.1 环境准备
+#### 4.1.1 环境准备（老机器）
 
 1.创建在module下创建ha文件
 
@@ -792,7 +792,7 @@ rm -rf data/ logs/ MapReduce-1.0-SNAPSHOT.jar wcinput/
 		<!-- 使用隔离机制时需要ssh秘钥登录-->
 		<property>
 			<name>dfs.ha.fencing.ssh.private-key-files</name>
-			<value>/home/atguigu/.ssh/id_rsa</value>
+			<value>/home/xu1an/.ssh/id_rsa</value>
 		</property>
 		  
 	  </configuration>
@@ -919,6 +919,8 @@ ZKFC使用一个健康检查命令定期地ping与之在相同主机的NameNode�
 ![](.\picture\HDFS-HA故障转移即机制.png)
 
 ### 4.3 HDFS-HA集群配置
+
+新机器配置工作
 
 #### 4.3.1 环境准备
 
@@ -1255,6 +1257,48 @@ export PATH=$PATH:$HADOOP_HOME/sbin
 
 #### 4.3.6 配置HDFS-HA自动故障转移
 
+**流程**
+
+```
+    1. 在core-site.xml文件中增加
+	   <!-- 指定zkfc要连接的zkServer地址 -->
+	   <property>
+		 <name>ha.zookeeper.quorum</name>
+		 <value>hadoop102:2181,hadoop103:2181,hadoop104:2181</value>
+	   </property>	   
+	   
+	2. 在hdfs-site.xml中增加
+	   <!-- 启用nn故障自动转移 -->
+	   <property>
+		  <name>dfs.ha.automatic-failover.enabled</name>
+		  <value>true</value>
+	   </property>
+	   
+	3. 修改后分发配置文件
+	   xsync /opt/module/ha/hadoop-3.1.3/etc/hadoop 
+	   
+    4. 关闭HDFS集群
+	   stop-dfs.sh
+	   
+    5. 启动Zookeeper集群
+	   zk.sh start
+	   
+    6. 初始化HA在Zookeeper中状态
+	   hdfs zkfc -formatZK
+	   
+	7. 启动HDFS服务
+	   start-dfs.sh
+	
+	8. 可以去zkCli.sh客户端查看Namenode选举锁节点内容
+	   get /hadoop-ha/mycluster/ActiveStandbyElectorLock
+	   
+	9. 测试故障自动转移
+	   -- 9.1  将当前状态为Active的namenode 杀死
+	   -- 9.2  刷新另外两台namenode的web端，关注状态
+	   -- 9.3  最后可以到zk中验证锁内容的名称
+	   
+```
+
 **1）具体配置**
 
 （1）在hdfs-site.xml中增加
@@ -1353,6 +1397,130 @@ numChildren = 0
 ![](E:\learning\04_java\01_笔记\BigData\01_Hadoop\picture\YARN-HA-1.png)
 
 #### 4.4.2 配置YARN-HA集群
+
+**流程**
+
+```
+  1. 修改yarn-site.xml
+		
+		<!-- 启用resourcemanager ha -->
+		<property>
+			<name>yarn.resourcemanager.ha.enabled</name>
+			<value>true</value>
+		</property>
+	 
+		<!-- 声明三台resourcemanager的地址 -->
+		<property>
+			<name>yarn.resourcemanager.cluster-id</name>
+			<value>cluster-yarn1</value>
+		</property>
+		<!--指定resourcemanager的逻辑列表-->
+		<property>
+			<name>yarn.resourcemanager.ha.rm-ids</name>
+			<value>rm1,rm2,rm3</value>
+		</property>
+		
+		<!-- ========== rm1的配置 ========== -->
+		<!-- 指定rm1的主机名 -->
+		<property>
+			<name>yarn.resourcemanager.hostname.rm1</name>
+			<value>hadoop102</value>
+		</property>
+		<!-- 指定rm1的web端地址 -->
+		<property>
+			<name>yarn.resourcemanager.webapp.address.rm1</name>
+			<value>hadoop102:8088</value>
+		</property>
+		<!-- 指定rm1的内部通信地址 -->
+		<property>
+			<name>yarn.resourcemanager.address.rm1</name>
+			<value>hadoop102:8032</value>
+		</property>
+		<!-- 指定AM向rm1申请资源的地址 -->
+		<property>
+			<name>yarn.resourcemanager.scheduler.address.rm1</name>  
+			<value>hadoop102:8030</value>
+		</property>
+		<!-- 指定供NM连接的地址 -->  
+		<property>
+			<name>yarn.resourcemanager.resource-tracker.address.rm1</name>
+			<value>hadoop102:8031</value>
+		</property>
+		
+		<!-- ========== rm2的配置 ========== -->
+		<!-- 指定rm2的主机名 -->
+		<property>
+			<name>yarn.resourcemanager.hostname.rm2</name>
+			<value>hadoop103</value>
+		</property>
+		<property>
+			<name>yarn.resourcemanager.webapp.address.rm2</name>
+			<value>hadoop103:8088</value>
+		</property>
+		<property>
+			<name>yarn.resourcemanager.address.rm2</name>
+			<value>hadoop103:8032</value>
+		</property>
+		<property>
+			<name>yarn.resourcemanager.scheduler.address.rm2</name>
+			<value>hadoop103:8030</value>
+		</property>
+		<property>
+			<name>yarn.resourcemanager.resource-tracker.address.rm2</name>
+			<value>hadoop103:8031</value>
+		</property>
+		
+		<!-- ========== rm3的配置 ========== -->
+		<!-- 指定rm3的主机名 -->
+		<property>
+			<name>yarn.resourcemanager.hostname.rm3</name>
+			<value>hadoop104</value>
+		</property>
+		<property>
+			<name>yarn.resourcemanager.webapp.address.rm3</name>
+			<value>hadoop104:8088</value>
+		</property>
+		<property>
+			<name>yarn.resourcemanager.address.rm3</name>
+			<value>hadoop104:8032</value>
+		</property>
+		<property>
+			<name>yarn.resourcemanager.scheduler.address.rm3</name>
+			<value>hadoop104:8030</value>
+		</property>
+		<property>
+			<name>yarn.resourcemanager.resource-tracker.address.rm3</name>
+			<value>hadoop104:8031</value>
+		</property>
+	 
+		<!-- 指定zookeeper集群的地址 --> 
+		<property>
+			<name>yarn.resourcemanager.zk-address</name>
+			<value>hadoop102:2181,hadoop103:2181,hadoop104:2181</value>
+		</property>
+
+		<!-- 启用自动恢复 --> 
+		<property>
+			<name>yarn.resourcemanager.recovery.enabled</name>
+			<value>true</value>
+		</property>
+	 
+		<!-- 指定resourcemanager的状态信息存储在zookeeper集群 --> 
+		<property>
+			<name>yarn.resourcemanager.store.class</name>     
+			<value>org.apache.hadoop.yarn.server.resourcemanager.recovery.ZKRMStateStore</value>
+		</property>
+
+	2. 将yarn-site.xml文件进行分发
+       	xsync /opt/module/ha/hadoop-3.1.3/etc/hadoop/yarn-site.xml
+		
+	3. 在任意的机器上启动yarn 
+	   start-yarn.sh
+	   
+	4. 通过访问web地址验证
+	
+	5. 测试Yarn故障自动转移
+```
 
 **1）环境准备**
 
@@ -1532,6 +1700,19 @@ numChildren = 0
 ![](E:\learning\04_java\01_笔记\BigData\01_Hadoop\picture\YARN-HA-2.png)
 
 ### 4.5 HDFS Federation架构设计
+
+```
+    1.当集群中数据量超级大时，NameNode的内存成了性能的瓶颈，所以提出了联邦机制
+	
+	2.联邦机制原理：
+	  将NameNode划分成不同的命名空间并进行编号。不同的命名空间之间相互隔离互不干扰。
+	  在DataNode中创建目录，此目录对应命名空间的编号。由此，
+	  编号相同的数据由对应的命名空间进行管理
+
+		128G * 1024(M) * 1024(KB) * 1024(bety) / 150 = xxx
+		xxx * 256M = yyy
+		yyy / 1024(G) / 1024(TB) / 1024(PB) = 200 左右PB的数据
+```
 
 #### 4.5.1 NameNode架构的局限性
 
