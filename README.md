@@ -19,8 +19,8 @@
   - [Zookeeper](./02_Zookeeper/Zookeeper.md)
 - [x] Hive
   - [Hive](./03_Hive/Hive.md)
-- [ ] Flume
-  - [Flume](./04_Flume)
+- [x] Flume
+  - [Flume](./04_Flume/Flume.md)
 - [ ] Kaflka
   - [Kaflka](./05_Kaflka)
 - [ ] HBase
@@ -34,6 +34,8 @@
 - [ ] 数仓采集
 - [ ] 电商数仓
 - [ ] 实时数仓
+
+---
 
 ### **技术分类**
 
@@ -62,6 +64,12 @@
 **任务调度框架**：Azkaban、Oozie
 
 **集群部署和监控**：Ambari、Cloudera Manager
+
+> 推荐系统框架图：
+
+![](.\01_Hadoop\picture\推荐系统框架图.png)
+
+---
 
 ### 机器学习（推荐系统、用户画像）
 
