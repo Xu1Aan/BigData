@@ -67,7 +67,7 @@
 
 > 推荐系统框架图：
 
-![](.\01_Hadoop\picture\推荐系统框架图.png)
+<img src=".\01_Hadoop\picture\推荐系统框架图.png" style="zoom:25%;" />
 
 ---
 
