@@ -1396,13 +1396,13 @@ hive (default)> load data local inpath '/opt/module/hive/datas/student.txt' into
 上传文件到HDFS
 
 ```mysql
-hive (default)> dfs -put /opt/module/hive/datas/student.txt /user/atguigu/hive;
+hive (default)> dfs -put /opt/module/hive/datas/student.txt /user/xu1an/hive;
 ```
 
 加载HDFS上数据
 
 ```mysql
-hive (default)> load data inpath '/user/atguigu/hive/student.txt' into table default.student;
+hive (default)> load data inpath '/user/xu1an/hive/student.txt' into table default.student;
 ```
 
 （3）加载数据覆盖表中已有的数据
@@ -1410,13 +1410,13 @@ hive (default)> load data inpath '/user/atguigu/hive/student.txt' into table def
 上传文件到HDFS
 
 ```mysql
-hive (default)> dfs -put /opt/module/datas/student.txt /user/atguigu/hive;
+hive (default)> dfs -put /opt/module/datas/student.txt /user/xu1an/hive;
 ```
 
 加载数据覆盖表中已有的数据
 
 ```mysql
-hive (default)> load data inpath '/user/atguigu/hive/student.txt' overwrite into table default.student;
+hive (default)> load data inpath '/user/xu1an/hive/student.txt' overwrite into table default.student;
 ```
 
 #### 5.1.2 通过查询语句向表中插入数据（Insert）
@@ -1522,14 +1522,16 @@ hive(default)>insert overwrite local directory '/opt/module/hive/datas/export/st
 **3）将查询的结果导出到HDFS上(没有local)**
 
 ```mysql
-hive (default)> insert overwrite directory '/user/atguigu/student2'
+hive (default)> insert overwrite directory '/user/xu1an/student2'
              ROW FORMAT DELIMITED FIELDS TERMINATED BY '\t' 
              select * from student;
 ```
 
+ **如果表中的列的值为null,导出到文件中以后通过\N来表示.** 
+
 #### 5.2.2 Hadoop命令导出到本地
 
-```mysql
+```shell
 hive (default)> dfs -get /user/hive/warehouse/student/student.txt
 /opt/module/datas/export/student3.txt;
 ```
@@ -1538,8 +1540,8 @@ hive (default)> dfs -get /user/hive/warehouse/student/student.txt
 
 基本语法：（hive -f/-e 执行语句或者脚本 > file）
 
-```mysql
-[atguigu@hadoop102 hive]$ bin/hive -e 'select * from default.student;' >
+```shell
+[xu1an@hadoop102 hive]$ bin/hive -e 'select * from default.student;' >
  /opt/module/hive/datas/export/student4.txt;
 ```
 
@@ -1571,15 +1573,18 @@ https://cwiki.apache.org/confluence/display/Hive/LanguageManual+Select
 查询语句语法
 
 ```mysql
-SELECT [ALL | DISTINCT] select_expr, select_expr, ...
-  FROM table_reference
-  [WHERE where_condition]
-  [GROUP BY col_list]
-  [ORDER BY col_list]
-  [CLUSTER BY col_list
-    | [DISTRIBUTE BY col_list] [SORT BY col_list]
+SELECT [ALL | DISTINCT] select_expr, select_expr, ...  -- 查哪些
+  FROM table_reference  -- 从哪查
+  [WHERE where_condition]  -- 过滤条件
+  [GROUP BY col_list] -- 分组
+  [HAVING having_contiditon] -- 分组后过滤条件
+  [ORDER BY col_list] -- 全局排序
+  [CLUSTER BY col_list  -- 分区排序
+    |
+   [DISTRIBUTE BY col_list]  -- 分区
+   [SORT BY col_list] -- 区内排序
   ]
- [LIMIT number]
+ [LIMIT number] -- 限制返回的条数
 ```
 
 ### 6.1 基本查询（Select…From）
@@ -1774,21 +1779,21 @@ hive (default)> select * from emp where sal >1000;
 
 **1）下面表中描述了谓词操作符，这些操作符同样可以用于JOIN…ON和HAVING语句中。**
 
-| 操作符                   | 支持的数据类型 | 描述                                                         |
-| ------------------------ | -------------- | ------------------------------------------------------------ |
-| A=B                      | 基本数据类型   | 如果A等于B则返回TRUE，反之返回FALSE                          |
-| A<=>B                    | 基本数据类型   | 如果A和B都为NULL，则返回TRUE，如果一边为NULL，返回False      |
-| A<>B, A!=B               | 基本数据类型   | A或者B为NULL则返回NULL；如果A不等于B，则返回TRUE，反之返回FALSE |
-| A<B                      | 基本数据类型   | A或者B为NULL，则返回NULL；如果A小于B，则返回TRUE，反之返回FALSE |
-| A<=B                     | 基本数据类型   | A或者B为NULL，则返回NULL；如果A小于等于B，则返回TRUE，反之返回FALSE |
-| A>B                      | 基本数据类型   | A或者B为NULL，则返回NULL；如果A大于B，则返回TRUE，反之返回FALSE |
-| A>=B                     | 基本数据类型   | A或者B为NULL，则返回NULL；如果A大于等于B，则返回TRUE，反之返回FALSE |
-| A [NOT] BETWEEN B  AND C | 基本数据类型   | 如果A，B或者C任一为NULL，则结果为NULL。如果A的值大于等于B而且小于或等于C，则结果为TRUE，反之为FALSE。如果使用NOT关键字则可达到相反的效果。 |
-| A IS NULL                | 所有数据类型   | 如果A等于NULL，则返回TRUE，反之返回FALSE                     |
-| A IS NOT NULL            | 所有数据类型   | 如果A不等于NULL，则返回TRUE，反之返回FALSE                   |
-| IN(数值1, 数值2)         | 所有数据类型   | 使用 IN运算显示列表中的值                                    |
-| A [NOT] LIKE B           | STRING 类型    | B是一个SQL下的简单正则表达式，也叫通配符模式，如果A与其匹配的话，则返回TRUE；反之返回FALSE。B的表达式说明如下：‘x%’表示A必须以字母‘x’开头，‘%x’表示A必须以字母’x’结尾，而‘%x%’表示A包含有字母’x’,可以位于开头，结尾或者字符串中间。如果使用NOT关键字则可达到相反的效果。 |
-| A RLIKE B, A  REGEXP B   | STRING 类型    | B是基于java的正则表达式，如果A与其匹配，则返回TRUE；反之返回FALSE。匹配使用的是JDK中的正则表达式接口实现的，因为正则也依据其中的规则。例如，正则表达式必须和整个字符串A相匹配，而不是只需与其字符串匹配。 |
+|          操作符          | 支持的数据类型 | 描述                                                         |
+| :----------------------: | :------------: | :----------------------------------------------------------- |
+|           A=B            |  基本数据类型  | 如果A等于B则返回TRUE，反之返回FALSE                          |
+|          A<=>B           |  基本数据类型  | 如果A和B都为NULL，则返回TRUE，如果一边为NULL，返回False      |
+|        A<>B, A!=B        |  基本数据类型  | A或者B为NULL则返回NULL；如果A不等于B，则返回TRUE，反之返回FALSE |
+|           A<B            |  基本数据类型  | A或者B为NULL，则返回NULL；如果A小于B，则返回TRUE，反之返回FALSE |
+|           A<=B           |  基本数据类型  | A或者B为NULL，则返回NULL；如果A小于等于B，则返回TRUE，反之返回FALSE |
+|           A>B            |  基本数据类型  | A或者B为NULL，则返回NULL；如果A大于B，则返回TRUE，反之返回FALSE |
+|           A>=B           |  基本数据类型  | A或者B为NULL，则返回NULL；如果A大于等于B，则返回TRUE，反之返回FALSE |
+| A [NOT] BETWEEN B  AND C |  基本数据类型  | 如果A，B或者C任一为NULL，则结果为NULL。如果A的值大于等于B而且小于或等于C，则结果为TRUE，反之为FALSE。如果使用NOT关键字则可达到相反的效果。 |
+|        A IS NULL         |  所有数据类型  | 如果A等于NULL，则返回TRUE，反之返回FALSE                     |
+|      A IS NOT NULL       |  所有数据类型  | 如果A不等于NULL，则返回TRUE，反之返回FALSE                   |
+|     IN(数值1, 数值2)     |  所有数据类型  | 使用 IN运算显示列表中的值                                    |
+|      A [NOT] LIKE B      |  STRING 类型   | B是一个SQL下的简单正则表达式，也叫通配符模式，如果A与其匹配的话，则返回TRUE；反之返回FALSE。B的表达式说明如下：‘x%’表示A必须以字母‘x’开头，‘%x’表示A必须以字母’x’结尾，而‘%x%’表示A包含有字母’x’,可以位于开头，结尾或者字符串中间。如果使用NOT关键字则可达到相反的效果。 |
+|  A RLIKE B, A  REGEXP B  |  STRING 类型   | B是基于java的正则表达式，如果A与其匹配，则返回TRUE；反之返回FALSE。匹配使用的是JDK中的正则表达式接口实现的，因为正则也依据其中的规则。例如，正则表达式必须和整个字符串A相匹配，而不是只需与其字符串匹配。 |
 
 **2）案例实操**
 
@@ -1892,10 +1897,51 @@ GROUP BY语句通常会和聚合函数一起使用，按照一个或者多个列
 hive (default)> select t.deptno, avg(t.sal) avg_sal from emp t group by t.deptno;
 ```
 
+或者
+
+```mysql
+select detno, avg(sal) sal_avg from emp group by deptno;
+```
+
 （2）计算emp每个部门中每个岗位的最高薪水
 
 ```mysql
 hive (default)> select t.deptno, t.job, max(t.sal) max_sal from emp t group by t.deptno, t.job;
+```
+
+或者
+
+```mysql
+select deptno ,job ,max(sal) max_sal from emp group by deptno,job ;  
+```
+
+（3）计算emp中每个部门中最高薪水的那个人. 
+
+```mysql
+select deptno ,max(sal) max_sal ,ename  from emp group by deptno  -- 错误的
+
+```
+
+```mysql
+select 
+   e.deptno , e.sal , e.ename 
+from 
+emp e 
+join 
+(select deptno ,max(sal) max_sal from emp group by deptno ) a 
+on e.deptno = a.deptno  and e.sal = a.max_sal ;
+```
+
+（4）计算emp中除了CLERK岗位之外的剩余员工的每个部门的平均工资大于1000的部门和平均工资。
+
+```mysql
+select
+  deptno , avg(sal) avg_sal 
+from 
+emp
+where job != 'CLERK'
+group by deptno 
+having avg_sal >2000 ;
 ```
 
 #### 6.2.2 Having语句
@@ -1923,6 +1969,34 @@ hive (default)> select deptno, avg(sal) avg_sal from emp group by deptno having 
 ```
 
 ### 6.3 Join语句
+
+<img src="E:\learning\04_java\01_笔记\BigData\03_Hive\picture\sql-join.png" style="zoom:80%;" />
+
+**Join方式** 
+
+- **内连接**  
+
+```mysql
+ A inner join B  on ....
+```
+
+内连接的结果集取交集
+
+- **外连接**      
+
+主表(驱动表) 和  从表(匹配表)
+外连接的结果集主表的所有数据 +  从表中与主表匹配的数据. 
+
+```mysql
+左外连接  A left outer join B  on ....    A 主 B 从
+         B right outer Join A  on.... 
+
+右外连接  A right outer join B  on ....   A 从 B 主
+         B left outer join  A  on ....
+```
+
+- **自连接**
+-  **满外连接(full outer join )** 
 
 #### 6.3.1 等值Join
 
@@ -2717,7 +2791,7 @@ LATERAL VIEW
 **4）创建本地movie.txt，导入数据**
 
 ```
-[atguigu@hadoop102 datas]$ vi movie_info.txt
+[xu1an@hadoop102 datas]$ vi movie_info.txt
 《疑犯追踪》	悬疑,动作,科幻,剧情
 《Lie to me》	悬疑,警匪,动作,心理,剧情
 《战狼2》	战争,动作,灾难
@@ -2800,7 +2874,7 @@ mart,2017-04-13,94
 **4）创建本地business.txt，导入数据**
 
 ```
-[atguigu@hadoop102 datas]$ vi business.txt
+[xu1an@hadoop102 datas]$ vi business.txt
 ```
 
 **5）创建hive表并导入数据**
@@ -2899,7 +2973,7 @@ ROW_NUMBER() 会根据顺序计算
 **4）创建本地score.txt，导入数据**
 
 ```
-[atguigu@hadoop102 datas]$ vi score.txt
+[xu1an@hadoop102 datas]$ vi score.txt
 ```
 
 **5）创建hive表并导入数据**
@@ -3029,7 +3103,7 @@ hive(default)> select my_len("abcd");
 **3）创建一个类**
 
 ```java
-package com.atguigu.hive;
+package com.xu1an.hive;
 
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
 import org.apache.hadoop.hive.ql.exec.UDFArgumentLengthException;
@@ -3096,7 +3170,7 @@ hive (default)> add jar /opt/module/hive/datas/myudf.jar;
 **6）创建临时函数与开发好的java class关联**
 
 ```
-hive (default)> create temporary function my_len as "com.atguigu.hive. MyStringLength";
+hive (default)> create temporary function my_len as "com.xu1an.hive. MyStringLength";
 ```
 
 **7）即可在hql中使用自定义的函数** 
@@ -3123,7 +3197,7 @@ hive
 **1）代码实现**
 
 ```
-package com.atguigu.udtf;
+package com.xu1an.udtf;
 
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
 import org.apache.hadoop.hive.ql.metadata.HiveException;
@@ -3199,7 +3273,7 @@ hive (default)> add jar /opt/module/hive/data/myudtf.jar;
 **4）创建临时函数与开发好的java class关联**
 
 ```
-hive (default)> create temporary function myudtf as "com.atguigu.hive.MyUDTF";
+hive (default)> create temporary function myudtf as "com.xu1an.hive.MyUDTF";
 ```
 
 **5）使用自定义的函数**
