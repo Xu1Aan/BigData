@@ -2119,6 +2119,145 @@ ON     d.loc = l.loc;
 hive (default)> select empno, dname from emp, dept;
 ```
 
+#### 6.3.9 练习
+
+2. emp 和 dept共有的数据(内连接)
+
+```mysql
+select
+  e.ename, d.deptno 
+from
+ emp e inner join dept  d
+on e.deptno = d.deptno 
+```
+
+3. emp所有的数据  和  dept中与emp匹配的数据
+
+```mysql
+select
+  e.ename, d.deptno
+from
+ emp e left outer join dept d 
+on e.deptno = d.deptno  ; 
+```
+
+```mysql
+select
+  e.ename, d.deptno
+from
+ dept d right outer join emp e 
+on e.deptno = d.deptno  ; 
+```
+
+
+  4) dept中所有的数据 和  emp中与dept匹配的数据
+
+```mysql
+select
+ e.ename, d.deptno
+from
+dept d left outer join emp e 
+on d.deptno = e.deptno ;
+```
+
+```mysql
+select
+ e.ename, d.deptno
+from
+emp e  right outer join dept d 
+on d.deptno = e.deptno ;
+```
+
+5. emp表独有的数据
+
+```mysql
+select
+  e.ename, d.deptno
+from
+ emp e left outer join dept d 
+on e.deptno = d.deptno  
+where 
+   d.deptno is null  
+```
+
+6. dept表独有的数据
+
+```mysql
+select
+ e.ename, d.deptno
+from
+dept d left outer join emp e 
+on d.deptno = e.deptno 
+where
+   e.deptno is null ;
+```
+
+7. emp 和 dept 所有的数据(全外连接，满外连接)
+   union all : 将结果集拼接到一起，不去重
+   union: 将结果集拼接到一起，去重
+
+```mysql
+select
+  e.ename, d.deptno
+from
+ emp e left outer join dept d 
+on e.deptno = d.deptno  
+union all
+select
+ e.ename, d.deptno
+from
+dept d left outer join emp e 
+on d.deptno = e.deptno ;
+```
+
+```mysql
+select
+  e.ename, d.deptno
+from
+ emp e left outer join dept d 
+on e.deptno = d.deptno  
+union
+select
+ e.ename, d.deptno
+from
+dept d left outer join emp e 
+on d.deptno = e.deptno ;
+```
+
+```mysql
+select
+  e.ename, d.deptno
+from
+ emp e full outer join dept d 
+on e.deptno = d.deptno ;
+```
+
+8. emp 和 dept 独有的数据
+
+```mysql
+select
+  e.ename, d.deptno
+from
+ emp e full outer join dept d 
+on e.deptno = d.deptno 
+where 
+   e.deptno is null 
+or 
+   d.deptno is null ;
+```
+
+9. 查询 员工名  部门名  位置名 
+
+```mysql
+select
+  e.ename, d.dname, l.loc_name
+from
+  emp e inner join dept d
+on e.deptno = d.deptno  
+  inner join location l 
+on d.loc = l.loc  ;   
+```
+
 ### 6.4 排序
 
 #### 6.4.1 全局排序（Order By）
@@ -2228,6 +2367,8 @@ hive (default)> select * from emp distribute by deptno sort by deptno;
 ```
 
 注意：按照部门编号分区，不一定就是固定死的数值，可以是20号和30号部门分到一个分区里面去。
+
+---
 
 ## 7 分区表和分桶表
 
@@ -2526,6 +2667,87 @@ hive (default)> show partitions dept_partition;
 ```
 
 思考：目标分区表是如何匹配到分区字段的？
+
+### 7.2 分桶表
+
+分区提供一个隔离数据和优化查询的便利方式。不过，并非所有的数据集都可形成合理的分区。对于一张表或者分区，Hive 可以进一步组织成桶，也就是更为细粒度的数据范围划分。
+
+分桶是将数据集分解成更容易管理的若干部分的另一个技术。
+
+分区针对的是数据的存储路径；分桶针对的是数据文件。
+
+**1）先创建分桶表**
+
+（1）数据准备
+
+```
+1001	ss1
+1002	ss2
+1003	ss3
+1004	ss4
+1005	ss5
+1006	ss6
+1007	ss7
+1008	ss8
+1009	ss9
+1010	ss10
+1011	ss11
+1012	ss12
+1013	ss13
+1014	ss14
+1015	ss15
+1016	ss16
+```
+
+（2）创建分桶表
+
+```
+create table stu_bucket(id int, name string)
+clustered by(id) 
+into 4 buckets
+row format delimited fields terminated by '\t';
+```
+
+（3）查看表结构
+
+```
+hive (default)> desc formatted stu_bucket;
+Num Buckets:            4     
+```
+
+（4）导入数据到分桶表中，load的方式
+
+```
+hive (default)> load data inpath   '/student.txt' into table stu_bucket;
+```
+
+（5）查看创建的分桶表中是否分成4个桶
+
+![](E:\learning\04_java\01_笔记\BigData\03_Hive\picture\分桶表.png)
+
+（6）查询分桶的数据
+
+```
+hive(default)> select * from stu_buck;
+```
+
+（7）分桶规则：
+
+根据结果可知：Hive的分桶采用对分桶字段的值进行哈希，然后除以桶的个数求余的方 式决定该条记录存放在哪个桶当中
+
+**2）分桶表操作需要注意的事项:**
+
+（1）reduce的个数设置为-1,让Job自行决定需要用多少个reduce或者将reduce的个数设置为大于等于分桶表的桶数
+
+（2）从hdfs中load数据到分桶表中，避免本地文件找不到问题
+
+（3）不要使用本地模式
+
+**3）insert方式将数据导入分桶表**
+
+```
+hive(default)>insert into table stu_buck select * from student_insert ;
+```
 
 ### 7.3 抽样查询
 
@@ -3455,3 +3677,1706 @@ Parquet文件是以二进制方式存储的，所以是不可以直接读取的�
 上图展示了一个Parquet文件的内容，一个文件中可以存储多个行组，文件的首位都是该文件的Magic Code，用于校验它是否是一个Parquet文件，Footer length记录了文件元数据的大小，通过该值和文件长度可以计算出元数据的偏移量，文件的元数据中包括每一个行组的元数据信息和该文件存储数据的Schema信息。除了文件中每一个行组的元数据，每一页的开始都会存储该页的元数据，在Parquet中，有三种类型的页：数据页、字典页和索引页。数据页用于存储当前行组中该列的值，字典页存储该列值的编码字典，每一个列块中最多包含一个字典页，索引页用来存储当前行组下该列的索引，目前Parquet中还不支持索引页。
 
 #### 9.4.5 主流文件存储格式对比实验
+
+从存储文件的压缩比和查询速度两个角度对比。
+
+存储文件的压缩比测试：
+
+**1）测试数据**
+
+**2）TextFile**
+
+（1）创建表，存储数据格式为TEXTFILE
+
+```
+create table log_text (
+track_time string,
+url string,
+session_id string,
+referer string,
+ip string,
+end_user_id string,
+city_id string
+)
+row format delimited fields terminated by '\t'
+stored as textfile;
+```
+
+（2）向表中加载数据
+
+```
+hive (default)> load data local inpath '/opt/module/hive/datas/log.data' into table log_text ;
+```
+
+（3）查看表中数据大小
+
+```
+hive (default)> dfs -du -h /user/hive/warehouse/log_text;
+```
+
+18.13 M /user/hive/warehouse/log_text/log.data
+
+**3）ORC**
+
+（1）创建表，存储数据格式为ORC
+
+```
+create table log_orc(
+track_time string,
+url string,
+session_id string,
+referer string,
+ip string,
+end_user_id string,
+city_id string
+)
+row format delimited fields terminated by '\t'
+stored as orc
+tblproperties("orc.compress"="NONE"); -- 设置orc存储不使用压缩
+```
+
+（2）向表中加载数据
+
+```
+hive (default)> insert into table log_orc select * from log_text ;
+```
+
+（3）查看表中数据大小
+
+```
+hive (default)> dfs -du -h /user/hive/warehouse/log_orc/ ;
+```
+
+7.7 M /user/hive/warehouse/log_orc/000000_0
+
+**4）Parquet**
+
+（1）创建表，存储数据格式为parquet
+
+```
+create table log_parquet(
+track_time string,
+url string,
+session_id string,
+referer string,
+ip string,
+end_user_id string,
+city_id string
+)
+row format delimited fields terminated by '\t'
+stored as parquet ;
+```
+
+（2）向表中加载数据
+
+```
+hive (default)> insert into table log_parquet select * from log_text ;
+```
+
+（3）查看表中数据大小
+
+```
+hive (default)> dfs -du -h /user/hive/warehouse/log_parquet/ ;
+```
+
+13.1 M  /user/hive/warehouse/log_parquet/000000_0
+
+存储文件的对比总结：
+
+ORC > Parquet > textFile
+
+存储文件的查询速度测试：
+
+（1）TextFile
+
+```
+hive (default)> insert overwrite local directory '/opt/module/hive/datas/log_text' select substring(url,1,4) from log_text ;
+No rows affected (10.522 seconds)
+```
+
+（2）ORC
+
+```
+hive (default)> insert overwrite local directory '/opt/module/hive/datas/log_orc' select substring(url,1,4) from log_orc ;
+No rows affected (11.495 seconds)
+```
+
+（3）Parquet
+
+```
+hive (default)> insert overwrite local directory '/opt/module/hive/datas/log_parquet' select substring(url,1,4) from log_parquet ;
+
+No rows affected (11.445 seconds)
+```
+
+存储文件的查询速度总结：查询速度相近。
+
+### 9.5 存储和压缩结合
+
+#### 9.5.1 测试存储和压缩
+
+官网：https://cwiki.apache.org/confluence/display/Hive/LanguageManual+ORC
+
+ORC存储方式的压缩：
+
+| Key                      | Default     | Notes                                                        |
+| ------------------------ | ----------- | ------------------------------------------------------------ |
+| orc.compress             | ZLIB        | high level  compression (one of NONE, ZLIB, SNAPPY)          |
+| orc.compress.size        | 262,144     | number of bytes  in each compression chunk                   |
+| orc.stripe.size          | 268,435,456 | number of bytes in each stripe                               |
+| orc.row.index.stride     | 10,000      | number of rows between index entries (must be >= 1000)       |
+| orc.create.index         | true        | whether to create  row indexes                               |
+| orc.bloom.filter.columns | ""          | comma separated list of column names for which bloom filter should be  created |
+| orc.bloom.filter.fpp     | 0.05        | false positive probability for bloom filter (must >0.0 and <1.0) |
+
+注意：所有关于ORCFile的参数都是在HQL语句的TBLPROPERTIES字段里面出现
+
+**1）创建一个ZLIB压缩的ORC存储方式**
+
+（1）建表语句
+
+```
+create table log_orc_zlib(
+track_time string,
+url string,
+session_id string,
+referer string,
+ip string,
+end_user_id string,
+city_id string
+)
+row format delimited fields terminated by '\t'
+stored as orc
+tblproperties("orc.compress"="ZLIB");
+```
+
+（2）插入数据
+
+```
+insert into log_orc_zlib select * from log_text;
+```
+
+（3）查看插入后数据
+
+```
+hive (default)> dfs -du -h /user/hive/warehouse/log_orc_zlib/ ;
+```
+
+2.78 M /user/hive/warehouse/log_orc_none/000000_0
+
+**2）创建一个SNAPPY压缩的ORC存储方式**
+
+（1）建表语句
+
+```
+create table log_orc_snappy(
+track_time string,
+url string,
+session_id string,
+referer string,
+ip string,
+end_user_id string,
+city_id string
+)
+row format delimited fields terminated by '\t'
+stored as orc
+tblproperties("orc.compress"="SNAPPY");
+```
+
+（2）插入数据
+
+```
+insert into log_orc_snappy select * from log_text;
+```
+
+（3）查看插入后数据
+
+```
+hive (default)> dfs -du -h /user/hive/warehouse/log_orc_snappy/ ;
+```
+
+3.75 M  /user/hive/warehouse/log_orc_snappy/000000_0
+
+ZLIB比Snappy压缩的还小。原因是ZLIB采用的是deflate压缩算法。比snappy压缩的压缩率高。
+
+**3）创建一个SNAPPY压缩的parquet存储方式**
+
+（1）建表语句
+
+```
+create table log_parquet_snappy(
+track_time string,
+url string,
+session_id string,
+referer string,
+ip string,
+end_user_id string,
+city_id string
+)
+row format delimited fields terminated by '\t'
+stored as parquet
+tblproperties("parquet.compression"="SNAPPY");
+```
+
+（2）插入数据
+
+```
+insert into log_parquet_snappy select * from log_text;
+```
+
+（3）查看插入后数据
+
+```
+hive (default)> dfs -du -h /user/hive/warehouse/log_parquet_snappy / ;
+```
+
+6.39 MB  /user/hive/warehouse/ log_parquet_snappy /000000_0
+
+**4）存储方式和压缩总结**
+
+在实际的项目开发当中，hive表的数据存储格式一般选择：orc或parquet。压缩方式一般选择snappy，lzo。
+
+## 10 企业级调优 
+
+#### 10.1 执行计划（Explain）
+
+**1）基本语法**
+
+EXPLAIN [EXTENDED | DEPENDENCY | AUTHORIZATION] query
+
+**2）案例实操**
+
+（1）查看下面这条语句的执行计划
+
+没有生成MR任务的
+
+```
+hive (default)> explain select * from emp;
+Explain
+STAGE DEPENDENCIES:
+  Stage-0 is a root stage
+
+STAGE PLANS:
+  Stage: Stage-0
+    Fetch Operator
+      limit: -1
+      Processor Tree:
+        TableScan
+          alias: emp
+          Statistics: Num rows: 1 Data size: 7020 Basic stats: COMPLETE Column stats: NONE
+          Select Operator
+            expressions: empno (type: int), ename (type: string), job (type: string), mgr (type: int), hiredate (type: string), sal (type: double), comm (type: double), deptno (type: int)
+            outputColumnNames: _col0, _col1, _col2, _col3, _col4, _col5, _col6, _col7
+            Statistics: Num rows: 1 Data size: 7020 Basic stats: COMPLETE Column stats: NONE
+            ListSink
+```
+
+有生成MR任务的
+
+```
+hive (default)> explain select deptno, avg(sal) avg_sal from emp group by deptno;
+Explain
+STAGE DEPENDENCIES:
+  Stage-1 is a root stage
+  Stage-0 depends on stages: Stage-1
+
+STAGE PLANS:
+  Stage: Stage-1
+    Map Reduce
+      Map Operator Tree:
+          TableScan
+            alias: emp
+            Statistics: Num rows: 1 Data size: 7020 Basic stats: COMPLETE Column stats: NONE
+            Select Operator
+              expressions: sal (type: double), deptno (type: int)
+              outputColumnNames: sal, deptno
+              Statistics: Num rows: 1 Data size: 7020 Basic stats: COMPLETE Column stats: NONE
+              Group By Operator
+                aggregations: sum(sal), count(sal)
+                keys: deptno (type: int)
+                mode: hash
+                outputColumnNames: _col0, _col1, _col2
+                Statistics: Num rows: 1 Data size: 7020 Basic stats: COMPLETE Column stats: NONE
+                Reduce Output Operator
+                  key expressions: _col0 (type: int)
+                  sort order: +
+                  Map-reduce partition columns: _col0 (type: int)
+                  Statistics: Num rows: 1 Data size: 7020 Basic stats: COMPLETE Column stats: NONE
+                  value expressions: _col1 (type: double), _col2 (type: bigint)
+      Execution mode: vectorized
+      Reduce Operator Tree:
+        Group By Operator
+          aggregations: sum(VALUE._col0), count(VALUE._col1)
+          keys: KEY._col0 (type: int)
+          mode: mergepartial
+          outputColumnNames: _col0, _col1, _col2
+          Statistics: Num rows: 1 Data size: 7020 Basic stats: COMPLETE Column stats: NONE
+          Select Operator
+            expressions: _col0 (type: int), (_col1 / _col2) (type: double)
+            outputColumnNames: _col0, _col1
+            Statistics: Num rows: 1 Data size: 7020 Basic stats: COMPLETE Column stats: NONE
+            File Output Operator
+              compressed: false
+              Statistics: Num rows: 1 Data size: 7020 Basic stats: COMPLETE Column stats: NONE
+              table:
+                  input format: org.apache.hadoop.mapred.SequenceFileInputFormat
+                  output format: org.apache.hadoop.hive.ql.io.HiveSequenceFileOutputFormat
+                  serde: org.apache.hadoop.hive.serde2.lazy.LazySimpleSerDe
+
+  Stage: Stage-0
+    Fetch Operator
+      limit: -1
+      Processor Tree:
+        ListSink
+```
+
+（2）查看详细执行计划
+
+```
+hive (default)> explain extended select * from emp;
+hive (default)> explain extended select deptno, avg(sal) avg_sal from emp group by deptno;
+```
+
+#### 10.2 Fetch抓取
+
+Fetch抓取是指，Hive中对某些情况的查询可以不必使用MapReduce计算。例如：SELECT * FROM employees;在这种情况下，Hive可以简单地读取employee对应的存储目录下的文件，然后输出查询结果到控制台。
+
+在hive-default.xml.template文件中hive.fetch.task.conversion默认是more，老版本hive默认是minimal，该属性修改为more以后，在全局查找、字段查找、limit查找等都不走mapreduce。
+
+```
+<property>
+    <name>hive.fetch.task.conversion</name>
+    <value>more</value>
+    <description>
+      Expects one of [none, minimal, more].
+      Some select queries can be converted to single FETCH task minimizing latency.
+      Currently the query should be single sourced not having any subquery and should not have any aggregations or distincts (which incurs RS), lateral views and joins.
+      0. none : disable hive.fetch.task.conversion
+      1. minimal : SELECT STAR, FILTER on partition columns, LIMIT only
+      2. more  : SELECT, FILTER, LIMIT only (support TABLESAMPLE and virtual columns)
+    </description>
+</property>
+```
+
+**1）案例实操：**
+
+（1）把hive.fetch.task.conversion设置成none，然后执行查询语句，都会执行mapreduce程序。
+
+```
+hive (default)> set hive.fetch.task.conversion=none;
+hive (default)> select * from emp;
+hive (default)> select ename from emp;
+hive (default)> select ename from emp limit 3;
+```
+
+（2）把hive.fetch.task.conversion设置成more，然后执行查询语句，如下查询方式都不会执行mapreduce程序。
+
+```
+hive (default)> set hive.fetch.task.conversion=more;
+hive (default)> select * from emp;
+hive (default)> select ename from emp;
+hive (default)> select ename from emp limit 3;
+```
+
+#### 10.3 本地模式
+
+大多数的Hadoop Job是需要Hadoop提供的完整的可扩展性来处理大数据集的。不过，有时Hive的输入数据量是非常小的。在这种情况下，为查询触发执行任务消耗的时间可能会比实际job的执行时间要多的多。对于大多数这种情况，Hive可以通过本地模式在单台机器上处理所有的任务。对于小数据集，执行时间可以明显被缩短。
+
+用户可以通过设置hive.exec.mode.local.auto的值为true，来让Hive在适当的时候自动启动这个优化。
+
+```
+set hive.exec.mode.local.auto=true;  //开启本地mr
+//设置local mr的最大输入数据量，当输入数据量小于这个值时采用local  mr的方式，默认为134217728，即128M
+set hive.exec.mode.local.auto.inputbytes.max=50000000;
+//设置local mr的最大输入文件个数，当输入文件个数小于这个值时采用local mr的方式，默认为4
+set hive.exec.mode.local.auto.input.files.max=10;
+```
+
+**1）案例实操：**
+
+（1）开启本地模式，并执行查询语句
+
+```
+![MapJoin](E:\learning\04_java\01_笔记\BigData\03_Hive\picture\MapJoin.png)hive (default)> set hive.exec.mode.local.auto=true; 
+hive (default)> select * from emp cluster by deptno;
+Time taken: 1.328 seconds, Fetched: 14 row(s)
+```
+
+（2）关闭本地模式，并执行查询语句
+
+```
+hive (default)> set hive.exec.mode.local.auto=false; 
+hive (default)> select * from emp cluster by deptno;
+Time taken: 20.09 seconds, Fetched: 14 row(s)
+```
+
+#### 10.4 表的优化
+
+#### 10.4.1 小表大表Join(MapJoin)
+
+将key相对分散，并且数据量小的表放在join的左边，这样可以有效减少内存溢出错误发生的几率；再进一步，可以使用map join让小的维度表（1000条以下的记录条数）先进内存。在map端完成join。
+
+实际测试发现：新版的hive已经对小表JOIN大表和大表JOIN小表进行了优化。小表放在左边和右边已经没有明显区别。
+
+案例实操
+
+**1）需求**
+
+测试大表JOIN小表和小表JOIN大表的效率
+
+**2）开启MapJoin参数设置**
+
+（1）设置自动选择Mapjoin
+
+```
+set hive.auto.convert.join = true; 默认为true
+```
+
+（2）大表小表的阈值设置（默认25M以下认为是小表）：
+
+```
+set hive.mapjoin.smalltable.filesize = 25000000;
+```
+
+**3）MapJoin工作机制**
+
+![](\picture\MapJoin.png)
+
+**4）建大表、小表和JOIN后表的语句**
+
+```
+// 创建大表
+create table bigtable(id bigint, t bigint, uid string, keyword string, url_rank int, click_num int, click_url string) row format delimited fields terminated by '\t';
+
+// 创建小表
+create table smalltable(id bigint, t bigint, uid string, keyword string, url_rank int, click_num int, click_url string) row format delimited fields terminated by '\t';
+
+// 创建join后表的语句
+create table jointable(id bigint, t bigint, uid string, keyword string, url_rank int, click_num int, click_url string) row format delimited fields terminated by '\t';
+```
+
+**5）分别向大表和小表中导入数据**
+
+```
+hive (default)> load data local inpath '/opt/module/hive/datas/bigtable' into table bigtable;
+hive (default)>load data local inpath '/opt/module/hive/datas/smalltable' into table smalltable;
+```
+
+**6）小表JOIN大表语句**
+
+```
+insert overwrite table jointable
+select b.id, b.t, b.uid, b.keyword, b.url_rank, b.click_num, b.click_url
+from smalltable s
+join bigtable  b
+on b.id = s.id;
+
+Time taken: 35.921 seconds
+No rows affected (44.456 seconds)
+```
+
+**7）执行大表JOIN小表语句**
+
+```
+insert overwrite table jointable
+select b.id, b.t, b.uid, b.keyword, b.url_rank, b.click_num, b.click_url
+from bigtable  b
+join smalltable  s
+on s.id = b.id;
+
+Time taken: 34.196 seconds
+No rows affected (26.287 seconds)
+```
+
+#### 10.4.2 大表Join大表
+
+**1）空KEY过滤**
+
+有时join超时是因为某些key对应的数据太多，而相同key对应的数据都会发送到相同的reducer上，从而导致内存不够。此时我们应该仔细分析这些异常的key，很多情况下，这些key对应的数据是异常数据，我们需要在SQL语句中进行过滤。例如key对应的字段为空，操作如下：
+
+案例实操
+
+（1）配置历史服务器
+
+配置mapred-site.xml
+
+```
+<property>
+<name>mapreduce.jobhistory.address</name>
+<value>hadoop102:10020</value>
+</property>
+<property>
+    <name>mapreduce.jobhistory.webapp.address</name>
+    <value>hadoop102:19888</value>
+</property>
+```
+
+启动历史服务器
+
+```
+sbin/mr-jobhistory-daemon.sh start historyserver
+```
+
+查看jobhistory
+
+http://hadoop102:19888/jobhistory
+
+（2）创建原始数据表、空id表、合并后数据表
+
+```
+// 创建空id表
+create table nullidtable(id bigint, t bigint, uid string, keyword string, url_rank int, click_num int, click_url string) row format delimited fields terminated by '\t';
+```
+
+（3）分别加载原始数据和空id数据到对应表中
+
+```
+hive (default)> load data local inpath '/opt/module/hive/datas/nullid' into table nullidtable;
+```
+
+（4）测试不过滤空id
+
+```
+hive (default)> insert overwrite table jointable select n.* from nullidtable n
+left join bigtable o on n.id = o.id;
+```
+
+（5）测试过滤空id
+
+```
+hive (default)> insert overwrite table jointable select n.* from (select * from nullidtable where id is not null ) n  left join bigtable o on n.id = o.id;
+```
+
+**2）空key转换**
+
+有时虽然某个key为空对应的数据很多，但是相应的数据不是异常数据，必须要包含在join的结果中，此时我们可以表a中key为空的字段赋一个随机的值，使得数据随机均匀地分不到不同的reducer上。例如：
+
+案例实操：
+
+不随机分布空null值：
+
+（1）设置5个reduce个数
+
+set mapreduce.job.reduces = 5;
+
+（2）JOIN两张表
+
+```
+insert overwrite table jointable
+select n.* from nullidtable n left join bigtable b on n.id = b.id;
+```
+
+结果：如下图所示，可以看出来，出现了数据倾斜，某些reducer的资源消耗远大于其他reducer。
+
+![](E:\learning\04_java\01_笔记\BigData\03_Hive\picture\空key转换.png)
+
+随机分布空null值
+
+（1）设置5个reduce个数
+
+set mapreduce.job.reduces = 5;
+
+（2）JOIN两张表
+
+```
+随机分布空null值
+（1）设置5个reduce个数
+set mapreduce.job.reduces = 5;
+（2）JOIN两张表
+```
+
+结果：如下图所示，可以看出来，消除了数据倾斜，负载均衡reducer的资源消耗
+
+![](E:\learning\04_java\01_笔记\BigData\03_Hive\picture\reducer的资源消耗.png)
+
+**3）SMB(Sort Merge Bucket join)**
+
+（1）创建第二张大表
+
+```
+create table bigtable2(
+    id bigint,
+    t bigint,
+    uid string,
+    keyword string,
+    url_rank int,
+    click_num int,
+    click_url string)
+row format delimited fields terminated by '\t';
+load data local inpath '/opt/module/data/bigtable' into table bigtable2;
+```
+
+测试大表直接JOIN
+
+```
+insert overwrite table jointable
+select b.id, b.t, b.uid, b.keyword, b.url_rank, b.click_num, b.click_url
+from bigtable s
+join bigtable2 b
+on b.id = s.id;
+```
+
+（2）创建分桶表1,桶的个数不要超过可用CPU的核数
+
+```
+create table bigtable_buck1(
+    id bigint,
+    t bigint,
+    uid string,
+    keyword string,
+    url_rank int,
+    click_num int,
+    click_url string)
+clustered by(id) 
+sorted by(id)
+into 6 buckets
+row format delimited fields terminated by '\t';
+
+insert into bigtable_buck1 select * from bigtable; 
+```
+
+（3）创建分通表2,桶的个数不要超过可用CPU的核数
+
+```
+create table bigtable_buck2(
+    id bigint,
+    t bigint,
+    uid string,
+    keyword string,
+    url_rank int,
+    click_num int,
+    click_url string)
+clustered by(id)
+sorted by(id) 
+into 6 buckets
+row format delimited fields terminated by '\t';
+
+insert into bigtable_buck2 select * from bigtable; 
+```
+
+（4）设置参数
+
+```
+set hive.optimize.bucketmapjoin = true;
+set hive.optimize.bucketmapjoin.sortedmerge = true;
+set hive.input.format=org.apache.hadoop.hive.ql.io.BucketizedHiveInputFormat;
+```
+
+（5）测试
+
+```
+insert overwrite table jointable
+select b.id, b.t, b.uid, b.keyword, b.url_rank, b.click_num, b.click_url
+from bigtable_buck1 s
+join bigtable_buck2 b
+on b.id = s.id;
+```
+
+#### 10.4.3 Group By
+
+默认情况下，Map阶段同一Key数据分发给一个reduce，当一个key数据过大时就倾斜了。
+
+![](E:\learning\04_java\01_笔记\BigData\03_Hive\picture\Group By.png)
+
+并不是所有的聚合操作都需要在Reduce端完成，很多聚合操作都可以先在Map端进行部分聚合，最后在Reduce端得出最终结果。
+
+**1）开启Map端聚合参数设置**
+
+（1）是否在Map端进行聚合，默认为True
+
+```
+set hive.map.aggr = true
+```
+
+（2）在Map端进行聚合操作的条目数目
+
+```
+set hive.groupby.mapaggr.checkinterval = 100000
+```
+
+（3）有数据倾斜的时候进行负载均衡（默认是false）
+
+```
+set hive.groupby.skewindata = true
+```
+
+当选项设定为 true，生成的查询计划会有两个MR Job。第一个MR Job中，Map的输出结果会随机分布到Reduce中，每个Reduce做部分聚合操作，并输出结果，这样处理的结果是相同的Group By Key有可能被分发到不同的Reduce中，从而达到负载均衡的目的；第二个MR Job再根据预处理的数据结果按照Group By Key分布到Reduce中（这个过程可以保证相同的Group By Key被分布到同一个Reduce中），最后完成最终的聚合操作。
+
+```
+hive (default)> select deptno from emp group by deptno;
+Stage-Stage-1: Map: 1  Reduce: 5   Cumulative CPU: 23.68 sec   HDFS Read: 19987 HDFS Write: 9 SUCCESS
+Total MapReduce CPU Time Spent: 23 seconds 680 msec
+OK
+deptno
+10
+20
+30
+```
+
+优化以后
+
+```
+hive (default)> set hive.groupby.skewindata = true;
+hive (default)> select deptno from emp group by deptno;
+Stage-Stage-1: Map: 1  Reduce: 5   Cumulative CPU: 28.53 sec   HDFS Read: 18209 HDFS Write: 534 SUCCESS
+Stage-Stage-2: Map: 1  Reduce: 5   Cumulative CPU: 38.32 sec   HDFS Read: 15014 HDFS Write: 9 SUCCESS
+Total MapReduce CPU Time Spent: 1 minutes 6 seconds 850 msec
+OK
+deptno
+10
+20
+30
+```
+
+#### 10.4.4 Count(Distinct) 去重统计
+
+数据量小的时候无所谓，数据量大的情况下，由于COUNT DISTINCT操作需要用一个Reduce Task来完成，这一个Reduce需要处理的数据量太大，就会导致整个Job很难完成，一般COUNT DISTINCT使用先GROUP BY再COUNT的方式替换,但是需要注意group by造成的数据倾斜问题.
+
+**1） 案例实操**
+
+（1）创建一张大表
+
+```
+hive (default)> create table bigtable(id bigint, time bigint, uid string, keyword
+string, url_rank int, click_num int, click_url string) row format delimited
+fields terminated by '\t';
+```
+
+（2）加载数据
+
+```
+hive (default)> load data local inpath '/opt/module/datas/bigtable' into table bigtable;
+```
+
+（3）设置5个reduce个数
+
+```
+set mapreduce.job.reduces = 5;
+```
+
+（4）执行去重id查询
+
+```
+hive (default)> select count(distinct id) from bigtable;
+Stage-Stage-1: Map: 1  Reduce: 1   Cumulative CPU: 7.12 sec   HDFS Read: 120741990 HDFS Write: 7 SUCCESS
+Total MapReduce CPU Time Spent: 7 seconds 120 msec
+OK
+c0
+100001
+Time taken: 23.607 seconds, Fetched: 1 row(s)
+```
+
+（5）采用GROUP by去重id
+
+```
+hive (default)> select count(id) from (select id from bigtable group by id) a;
+Stage-Stage-1: Map: 1  Reduce: 5   Cumulative CPU: 17.53 sec   HDFS Read: 120752703 HDFS Write: 580 SUCCESS
+Stage-Stage-2: Map: 1  Reduce: 1   Cumulative CPU: 4.29 sec2   HDFS Read: 9409 HDFS Write: 7 SUCCESS
+Total MapReduce CPU Time Spent: 21 seconds 820 msec
+OK
+_c0
+100001
+Time taken: 50.795 seconds, Fetched: 1 row(s)
+```
+
+虽然会多用一个Job来完成，但在数据量大的情况下，这个绝对是值得的。
+
+#### 10.4.5 笛卡尔积
+
+尽量避免笛卡尔积，join的时候不加on条件，或者无效的on条件，Hive只能使用1个reducer来完成笛卡尔积。
+
+#### 10.4.6 行列过滤
+
+列处理：在SELECT中，只拿需要的列，如果有分区，尽量使用分区过滤，少用SELECT *。
+
+行处理：在分区剪裁中，当使用外关联时，如果将副表的过滤条件写在Where后面，那么就会先全表关联，之后再过滤，比如：
+
+案例实操：
+
+**1）测试先关联两张表，再用where条件过滤**
+
+```
+hive (default)> select o.id from bigtable b
+join bigtable o.id = b.id
+where o.id <= 10;
+```
+
+Time taken: 34.406 seconds, Fetched: 100 row(s)
+
+**2）通过子查询后，再关联表**
+
+```
+hive (default)> select b.id from bigtable b
+join (select id from bigtable where id <= 10 ) o on b.id = o.id;
+```
+
+Time taken: 30.058 seconds, Fetched: 100 row(s)
+
+#### 10.4.7 分区
+
+详见7.1章。
+
+#### 10.4.8 分桶
+
+详见7.2章。
+
+### 10.5 合理设置Map及Reduce数
+
+**1）**通常情况下，作业会通过input的目录产生一个或者多个map任务。
+
+主要的决定因素有：input的文件总个数，input的文件大小，集群设置的文件块大小。
+
+**2）**是不是map数越多越好？
+
+答案是否定的。如果一个任务有很多小文件（远远小于块大小128m），则每个小文件也会被当做一个块，用一个map任务来完成，而一个map任务启动和初始化的时间远远大于逻辑处理的时间，就会造成很大的资源浪费。而且，同时可执行的map数是受限的。
+
+**3）**是不是保证每个map处理接近128m的文件块，就高枕无忧了？
+
+答案也是不一定。比如有一个127m的文件，正常会用一个map去完成，但这个文件只有一个或者两个小字段，却有几千万的记录，如果map处理的逻辑比较复杂，用一个map任务去做，肯定也比较耗时。
+
+针对上面的问题2和3，我们需要采取两种方式来解决：即减少map数和增加map数；
+
+#### 10.5.1 复杂文件增加Map数
+
+当input的文件都很大，任务逻辑复杂，map执行非常慢的时候，可以考虑增加Map数，来使得每个map处理的数据量减少，从而提高任务的执行效率。
+
+增加map的方法为：根据
+
+computeSliteSize(Math.max(minSize,Math.min(maxSize,blocksize)))=blocksize=128M公式，调整maxSize最大值。让maxSize最大值低于blocksize就可以增加map的个数。
+
+案例实操：
+
+**1）执行查询**
+
+```
+hive (default)> select count(*) from emp;
+Hadoop job information for Stage-1: number of mappers: 1; number of reducers: 1
+```
+
+**2）设置最大切片值为100个字节**
+
+```
+hive (default)> set mapreduce.input.fileinputformat.split.maxsize=100;
+hive (default)> select count(*) from emp;
+Hadoop job information for Stage-1: number of mappers: 6; number of reducers: 1
+```
+
+#### 10.5.2 小文件进行合并
+
+**1）**在map执行前合并小文件，减少map数：CombineHiveInputFormat具有对小文件进行合并的功能（系统默认的格式）。HiveInputFormat没有对小文件合并功能。
+
+```
+set hive.input.format= org.apache.hadoop.hive.ql.io.CombineHiveInputFormat;
+```
+
+**2）**在Map-Reduce的任务结束时合并小文件的设置：
+
+在map-only任务结束时合并小文件，默认true
+
+```
+SET hive.merge.mapfiles = true;
+```
+
+在map-reduce任务结束时合并小文件，默认false
+
+```
+SET hive.merge.mapredfiles = true;
+```
+
+合并文件的大小，默认256M
+
+```
+SET hive.merge.size.per.task = 268435456;
+```
+
+当输出文件的平均大小小于该值时，启动一个独立的map-reduce任务进行文件merge
+
+```
+SET hive.merge.smallfiles.avgsize = 16777216;
+```
+
+##### 10.5.3 合理设置Reduce数
+
+**1）调整reduce个数方法一**
+
+（1）每个Reduce处理的数据量默认是256MB
+
+```
+hive.exec.reducers.bytes.per.reducer=256000000
+```
+
+（2）每个任务最大的reduce数，默认为1009
+
+```
+hive.exec.reducers.max=1009
+```
+
+（3）计算reducer数的公式
+
+```
+N=min(参数2，总输入数据量/参数1)
+```
+
+**2）调整reduce个数方法二**
+
+在hadoop的mapred-default.xml文件中修改
+
+设置每个job的Reduce个数
+
+```
+set mapreduce.job.reduces = 15;
+```
+
+**3）reduce个数并不是越多越好**
+
+（1）过多的启动和初始化reduce也会消耗时间和资源；
+
+（2）另外，有多少个reduce，就会有多少个输出文件，如果生成了很多个小文件，那么如果这些小文件作为下一个任务的输入，则也会出现小文件过多的问题；
+
+在设置reduce个数的时候也需要考虑这两个原则：处理大数据量利用合适的reduce数；使单个reduce任务处理数据量大小要合适；
+
+### 10.6 并行执行
+
+Hive会将一个查询转化成一个或者多个阶段。这样的阶段可以是MapReduce阶段、抽样阶段、合并阶段、limit阶段。或者Hive执行过程中可能需要的其他阶段。默认情况下，Hive一次只会执行一个阶段。不过，某个特定的job可能包含众多的阶段，而这些阶段可能并非完全互相依赖的，也就是说有些阶段是可以并行执行的，这样可能使得整个job的执行时间缩短。不过，如果有更多的阶段可以并行执行，那么job可能就越快完成。
+
+通过设置参数hive.exec.parallel值为true，就可以开启并发执行。不过，在共享集群中，需要注意下，如果job中并行阶段增多，那么集群利用率就会增加。
+
+```
+set hive.exec.parallel=true;              //打开任务并行执行
+set hive.exec.parallel.thread.number=16;  //同一个sql允许最大并行度，默认为8
+```
+
+当然，得是在系统资源比较空闲的时候才有优势，否则，没资源，并行也起不来。
+
+### 10.7 严格模式
+
+Hive可以通过设置防止一些危险操作：
+
+**1）分区表不使用分区过滤**
+
+  将hive.strict.checks.no.partition.filter设置为true时，对于分区表，除非where语句中含有分区字段过滤条件来限制范围，否则不允许执行。换句话说，就是用户不允许扫描所有分区。进行这个限制的原因是，通常分区表都拥有非常大的数据集，而且数据增加迅速。没有进行分区限制的查询可能会消耗令人不可接受的巨大资源来处理这个表。
+ **2）使用order by****没有limit****过滤**
+
+ 将hive.strict.checks.orderby.no.limit设置为true时，对于使用了order by语句的查询，要求必须使用limit语句。因为order by为了执行排序过程会将所有的结果数据分发到同一个Reducer中进行处理，强制要求用户增加这个LIMIT语句可以防止Reducer额外执行很长一段时间。
+
+**3）笛卡尔积**
+
+ 将hive.strict.checks.cartesian.product设置为true时，会限制笛卡尔积的查询。对关系型数据库非常了解的用户可能期望在 执行JOIN查询的时候不使用ON语句而是使用where语句，这样关系数据库的执行优化器就可以高效地将WHERE语句转化成那个ON语句。不幸的是，Hive并不会执行这种优化，因此，如果表足够大，那么这个查询就会出现不可控的情况。
+
+### 10.8 JVM重用
+
+详见hadoop优化文档中jvm重用
+
+### 10.9 压缩
+
+详见第9章。
+
+## 11 Hive实战
+
+### 11.1 需求描述
+
+统计硅谷影音视频网站的常规指标，各种TopN指标：
+
+-- 统计视频观看数Top10
+
+-- 统计视频类别热度Top10
+
+-- 统计出视频观看数最高的20个视频的所属类别以及类别包含Top20视频的个数
+
+-- 统计视频观看数Top50所关联视频的所属类别Rank
+
+-- 统计每个类别中的视频热度Top10,以Music为例
+
+-- 统计每个类别视频观看数Top10
+
+-- 统计上传视频最多的用户Top10以及他们上传的视频观看次数在前20的视频
+
+ 
+
+### 11.2 数据结构
+
+**1）视频表**
+
+| 字段      | 备注                        | 详细描述               |
+| --------- | --------------------------- | ---------------------- |
+| videoId   | 视频唯一id（String）        | 11位字符串             |
+| uploader  | 视频上传者（String）        | 上传视频的用户名String |
+| age       | 视频年龄（int）             | 视频在平台上的整数天   |
+| category  | 视频类别（Array<String>）   | 上传视频指定的视频分类 |
+| length    | 视频长度（Int）             | 整形数字标识的视频长度 |
+| views     | 观看次数（Int）             | 视频被浏览的次数       |
+| rate      | 视频评分（Double）          | 满分5分                |
+| Ratings   | 流量（Int）                 | 视频的流量，整型数字   |
+| conments  | 评论数（Int）               | 一个视频的整数评论数   |
+| relatedId | 相关视频id（Array<String>） | 相关视频的id，最多20个 |
+
+**2）用户表**
+
+| **字段** | **备注**     | **字段类型** |
+| -------- | ------------ | ------------ |
+| uploader | 上传者用户名 | string       |
+| videos   | 上传视频数   | int          |
+| friends  | 朋友数量     | int          |
+
+### 11.3 准备工作
+
+#### 11.3.1 ETL
+
+通过观察原始数据形式，可以发现，视频可以有多个所属分类，每个所属分类用&符号分割，且分割的两边有空格字符，同时相关视频也是可以有多个元素，多个相关视频又用“\t”进行分割。为了分析数据时方便对存在多个子元素的数据进行操作，我们首先进行数据重组清洗操作。即：将所有的类别用“&”分割，同时去掉两边空格，多个相关视频id也使用“&”进行分割。
+
+**1）ETL之封装工具类**
+
+```
+public class ETLUtil {
+    /**
+ 	* 数据清洗方法
+ 	*/
+   public static  String  etlData(String srcData){
+        StringBuffer resultData = new StringBuffer();
+        //1. 先将数据通过\t 切割
+        String[] datas = srcData.split("\t");
+        //2. 判断长度是否小于9
+        if(datas.length <9){
+            return null ;
+        }
+        //3. 将数据中的视频类别的空格去掉
+        datas[3]=datas[3].replaceAll(" ","");
+        //4. 将数据中的关联视频id通过&拼接
+        for (int i = 0; i < datas.length; i++) {
+            if(i < 9){
+                //4.1 没有关联视频的情况
+                if(i == datas.length-1){
+                    resultData.append(datas[i]);
+                }else{
+                    resultData.append(datas[i]).append("\t");
+                }
+            }else{
+                //4.2 有关联视频的情况
+                if(i == datas.length-1){
+                    resultData.append(datas[i]);
+                }else{
+                    resultData.append(datas[i]).append("&");
+                }
+            }
+        }
+        return resultData.toString();
+    }
+	} 
+```
+
+**2）ETL之Mapper**
+
+```
+  /**
+ * 清洗谷粒影音的原始数据
+ * 清洗规则
+ *  1. 将数据长度小于9的清洗掉
+ *  2. 将数据中的视频类别中间的空格去掉   People & Blogs
+ *  3. 将数据中的关联视频id通过&符号拼接
+ */
+public class EtlMapper extends Mapper<LongWritable, Text,Text, NullWritable> {
+    private Text k = new Text();
+    @Override
+    protected void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
+       //获取一行
+        String line = value.toString();
+        //清洗
+        String resultData = ETLUtil.etlData(line);
+
+        if(resultData != null) {
+            //写出
+            k.set(resultData);
+            context.write(k,NullWritable.get());
+        }
+    }
+}
+```
+
+**3）ETL之Driver**
+
+```
+ package com.atguigu.gulivideo.etl;
+
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.NullWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+
+public class EtlDriver {
+    public static void main(String[] args) throws Exception {
+        Configuration conf = new Configuration();
+        Job job  = Job.getInstance(conf);
+        job.setJarByClass(EtlDriver.class);
+        job.setMapperClass(EtlMapper.class);
+        job.setMapOutputKeyClass(Text.class);
+        job.setMapOutputValueClass(NullWritable.class);
+        job.setOutputKeyClass(Text.class);
+        job.setOutputValueClass(NullWritable.class);
+        job.setNumReduceTasks(0);
+        FileInputFormat.setInputPaths(job,new Path(args[0]));
+        FileOutputFormat.setOutputPath(job,new Path(args[1]));
+        job.waitForCompletion(true);
+    }
+} 
+```
+
+**4）将ETL程序打包为etl.jar并上传到Linux的/opt/module/hive/datas目录下**
+
+**5）上传原始数据到HDFS**
+
+```
+[atguigu@hadoop102 datas] pwd
+/opt/module/hive/datas
+[atguigu@hadoop102 datas] hadoop fs -mkdir -p  /gulivideo/video
+[atguigu@hadoop102 datas] hadoop fs -mkdir -p  /gulivideo/user
+[atguigu@hadoop102 datas] hadoop fs -put gulivideo/user/user.txt   /gulivideo/user
+[atguigu@hadoop102 datas] hadoop fs -put gulivideo/video/*.txt   /gulivideo/video
+```
+
+**6）ETL数据**
+
+```
+[atguigu@hadoop102 datas] hadoop jar  etl.jar  com.atguigu.hive.etl.EtlDriver /gulivideo/video /gulivideo/video/output
+```
+
+#### 11.3.2 准备表
+
+**1）需要准备的表**
+
+创建原始数据表：gulivideo_ori，gulivideo_user_ori，
+
+创建最终表：gulivideo_orc，gulivideo_user_orc
+
+**2）创建原始数据表：**
+
+  （1）gulivideo_ori
+
+```
+create table gulivideo_ori(
+    videoId string, 
+    uploader string, 
+    age int, 
+    category array<string>, 
+    length int, 
+    views int, 
+    rate float, 
+    ratings int, 
+    comments int,
+    relatedId array<string>)
+row format delimited fields terminated by "\t"
+collection items terminated by "&"
+stored as textfile;
+```
+
+（2）创建原始数据表: gulivideo_user_ori
+
+```
+create table gulivideo_user_ori(
+    uploader string,
+    videos int,
+    friends int)
+row format delimited 
+fields terminated by "\t" 
+stored as textfile;
+```
+
+**3）创建orc存储格式带snappy压缩的表：**
+
+（1）gulivideo_orc
+
+```
+create table gulivideo_orc(
+    videoId string, 
+    uploader string, 
+    age int, 
+    category array<string>, 
+    length int, 
+    views int, 
+    rate float, 
+    ratings int, 
+    comments int,
+    relatedId array<string>)
+stored as orc
+tblproperties("orc.compress"="SNAPPY");
+```
+
+（2）gulivideo_user_orc
+
+```
+create table gulivideo_user_orc(
+    uploader string,
+    videos int,
+    friends int)
+row format delimited 
+fields terminated by "\t" 
+stored as orc
+tblproperties("orc.compress"="SNAPPY");
+```
+
+（3）向ori表插入数据
+
+```
+load data inpath "/gulivideo/video/output" into table gulivideo_ori;
+load data inpath "/gulivideo/user" into table gulivideo_user_ori;
+```
+
+（4）向orc表插入数据
+
+```
+insert into table gulivideo_orc select * from gulivideo_ori;
+insert into table gulivideo_user_orc select * from gulivideo_user_ori;
+```
+
+#### 11.3.3 安装Tez引擎（了解）
+
+Tez是一个Hive的运行引擎，性能优于MR。为什么优于MR呢？看下。
+
+![安装Tez引擎](\picture\安装Tez引擎.png)
+
+用Hive直接编写MR程序，假设有四个有依赖关系的MR作业，上图中，绿色是Reduce Task，云状表示写屏蔽，需要将中间结果持久化写到HDFS。
+
+Tez可以将多个有依赖的作业转换为一个作业，这样只需写一次HDFS，且中间节点较少，从而大大提升作业的计算性能。
+
+**1）将tez安装包拷贝到集群，并解压tar包**
+
+```
+[atguigu@hadoop102 software]$ mkdir /opt/module/tez
+[atguigu@hadoop102 software]$ tar -zxvf /opt/software/tez-0.10.1-SNAPSHOT-minimal.tar.gz -C /opt/module/tez
+```
+
+**2）上传tez依赖到HDFS**
+
+```
+[atguigu@hadoop102 software]$ hadoop fs -mkdir /tez
+[atguigu@hadoop102 software]$ hadoop fs -put /opt/software/tez-0.10.1-SNAPSHOT.tar.gz /tez
+```
+
+**3）新建tez-site.xml**
+
+```
+[atguigu@hadoop102 software]$ vim $HADOOP_HOME/etc/hadoop/tez-site.xml
+```
+
+添加如下内容：
+
+```
+<?xml version="1.0" encoding="UTF-8"?>
+<?xml-stylesheet type="text/xsl" href="configuration.xsl"?>
+<configuration>
+<property>
+	<name>tez.lib.uris</name>
+    <value>${fs.defaultFS}/tez/tez-0.10.1-SNAPSHOT.tar.gz</value>
+</property>
+<property>
+     <name>tez.use.cluster.hadoop-libs</name>
+     <value>true</value>
+</property>
+<property>
+     <name>tez.am.resource.memory.mb</name>
+     <value>1024</value>
+</property>
+<property>
+     <name>tez.am.resource.cpu.vcores</name>
+     <value>1</value>
+</property>
+<property>
+     <name>tez.container.max.java.heap.fraction</name>
+     <value>0.4</value>
+</property>
+<property>
+     <name>tez.task.resource.memory.mb</name>
+     <value>1024</value>
+</property>
+<property>
+     <name>tez.task.resource.cpu.vcores</name>
+     <value>1</value>
+</property>
+</configuration>
+```
+
+**4）修改Hadoop环境变量**
+
+```
+[atguigu@hadoop102 software]$ vim $HADOOP_HOME/etc/hadoop/shellprofile.d/tez.sh
+添加Tez的Jar包相关信息
+hadoop_add_profile tez
+function _tez_hadoop_classpath
+{
+    hadoop_add_classpath "$HADOOP_HOME/etc/hadoop" after
+    hadoop_add_classpath "/opt/module/tez/*" after
+    hadoop_add_classpath "/opt/module/tez/lib/*" after
+}
+```
+
+**5）修改Hive的计算引擎**
+
+```
+[atguigu@hadoop102 software]$ vim $HIVE_HOME/conf/hive-site.xml
+```
+
+添加
+
+```
+<property>
+    <name>hive.execution.engine</name>
+    <value>tez</value>
+</property>
+<property>
+    <name>hive.tez.container.size</name>
+    <value>1024</value>
+</property>
+```
+
+**6）解决日志Jar包冲突**
+
+```
+[atguigu@hadoop102 software]$ rm /opt/module/tez/lib/slf4j-log4j12-1.7.10.jar
+```
+
+### 11.4 业务分析
+
+#### 11.4.1 统计视频观看数Top10
+
+思路：使用order by按照views字段做一个全局排序即可，同时我们设置只显示前10条。
+
+最终代码：
+
+```
+SELECT 
+     videoId,
+     views 
+FROM 
+     gulivideo_orc
+ORDER BY 
+     views DESC 
+LIMIT 10;
+```
+
+#### 11.4.2 统计视频类别热度Top10
+
+思路：
+
+（1）即统计每个类别有多少个视频，显示出包含视频最多的前10个类别。
+
+（2）我们需要按照类别group by聚合，然后count组内的videoId个数即可。
+
+（3）因为当前表结构为：一个视频对应一个或多个类别。所以如果要group by类别，需要先将类别进行列转行(展开)，然后再进行count即可。
+
+（4）最后按照热度排序，显示前10条。
+
+最终代码：
+
+```
+SELECT 
+    t1.category_name , 
+    COUNT(t1.videoId) hot
+FROM 
+(
+SELECT 
+    videoId, 
+    category_name 
+FROM 
+    gulivideo_orc 
+lateral VIEW explode(category) gulivideo_orc_tmp AS category_name
+) t1
+GROUP BY 
+    t1.category_name 
+ORDER BY
+    hot 
+DESC 
+LIMIT 10
+```
+
+#### 11.4.3 统计出视频观看数最高的20个视频的所属类别以及类别包含Top20视频的个数
+
+思路：
+
+（1）先找到观看数最高的20个视频所属条目的所有信息，降序排列
+
+（2）把这20条信息中的category分裂出来(列转行)
+
+（3）最后查询视频分类名称和该分类下有多少个Top20的视频
+
+最终代码：
+
+```
+SELECT 
+    t2.category_name,
+    COUNT(t2.videoId) video_sum
+FROM 
+(
+SELECT
+    t1.videoId,
+    category_name
+FROM 
+(
+SELECT 
+    videoId, 
+    views ,
+    category 
+FROM 
+    gulivideo_orc
+ORDER BY 
+    views 
+DESC 
+LIMIT 20 
+) t1
+lateral VIEW explode(t1.category) t1_tmp AS category_name
+) t2
+GROUP BY t2.category_name
+```
+
+#### 11.4.4 统计视频观看数Top50所关联视频的所属类别排序
+
+代码：
+
+```
+SELECT
+   t6.category_name,
+   t6.video_sum,
+   rank() over(ORDER BY t6.video_sum DESC ) rk
+FROM
+(
+SELECT
+   t5.category_name,
+   COUNT(t5.relatedid_id) video_sum
+FROM
+(
+SELECT
+  t4.relatedid_id,
+  category_name
+FROM
+(
+SELECT 
+  t2.relatedid_id ,
+  t3.category 
+FROM 
+(
+SELECT 
+   relatedid_id
+FROM 
+(
+SELECT 
+   videoId, 
+   views,
+   relatedid 
+FROM 
+   gulivideo_orc
+ORDER BY
+   views 
+DESC 
+LIMIT 50
+)t1
+lateral VIEW explode(t1.relatedid) t1_tmp AS relatedid_id
+)t2 
+JOIN 
+   gulivideo_orc t3 
+ON 
+ t2.relatedid_id = t3.videoId 
+) t4 
+lateral VIEW explode(t4.category) t4_tmp AS category_name
+) t5
+GROUP BY
+  t5.category_name
+ORDER BY 
+  video_sum
+DESC 
+) t6
+```
+
+#### 11.4.5 统计每个类别中的视频热度Top10，以Music为例
+
+思路：
+
+（1）要想统计Music类别中的视频热度Top10，需要先找到Music类别，那么就需要将category展开，所以可以创建一张表用于存放categoryId展开的数据。
+
+（2）向category展开的表中插入数据。
+
+（3）统计对应类别（Music）中的视频热度。
+
+统计Music类别的Top10（也可以统计其他）
+
+```
+SELECT 
+    t1.videoId, 
+    t1.views,
+    t1.category_name
+FROM 
+(
+SELECT
+    videoId,
+    views,
+    category_name
+FROM gulivideo_orc
+lateral VIEW explode(category) gulivideo_orc_tmp AS category_name
+)t1    
+WHERE 
+    t1.category_name = "Music" 
+ORDER BY 
+    t1.views 
+DESC 
+LIMIT 10
+```
+
+#### 11.4.6 统计每个类别视频观看数Top10
+
+最终代码：
+
+```
+SELECT 
+  t2.videoId,
+  t2.views,
+  t2.category_name,
+  t2.rk
+FROM 
+(
+SELECT 
+   t1.videoId,
+   t1.views,
+   t1.category_name,
+   rank() over(PARTITION BY t1.category_name ORDER BY t1.views DESC ) rk
+FROM    
+(
+SELECT
+    videoId,
+    views,
+    category_name
+FROM gulivideo_orc
+lateral VIEW explode(category) gulivideo_orc_tmp AS category_name
+)t1
+)t2
+WHERE t2.rk <=10
+```
+
+#### 11.4.7 统计上传视频最多的用户Top10以及他们上传的视频观看次数在前20的视频
+
+思路：
+
+（1）求出上传视频最多的10个用户
+
+（2）关联gulivideo_orc表，求出这10个用户上传的所有的视频，按照观看数取前20
+
+最终代码:
+
+```
+SELECT 
+   t2.videoId,
+   t2.views,
+   t2.uploader
+FROM
+(
+SELECT 
+   uploader,
+   videos
+FROM gulivideo_user_orc 
+ORDER BY 
+   videos
+DESC
+LIMIT 10    
+) t1
+JOIN gulivideo_orc t2 
+ON t1.uploader = t2.uploader
+ORDER BY 
+  t2.views 
+DESC
+LIMIT 20
+```
+
+## 附录：常见错误及解决方案
+
+**0）如果更换Tez引擎后，执行任务卡住，可以尝试调节容量调度器的资源调度策略**
+
+将$HADOOP_HOME/etc/hadoop/capacity-scheduler.xml文件中的
+
+```
+<property>
+    <name>yarn.scheduler.capacity.maximum-am-resource-percent</name>
+    <value>0.1</value>
+    <description>
+      Maximum percent of resources in the cluster which can be used to run 
+      application masters i.e. controls number of concurrent running
+      applications.
+    </description>
+</property>
+改成
+<property>
+    <name>yarn.scheduler.capacity.maximum-am-resource-percent</name>
+    <value>1</value>
+    <description>
+      Maximum percent of resources in the cluster which can be used to run 
+      application masters i.e. controls number of concurrent running
+      applications.
+    </description>
+</property>
+```
+
+**1）连接不上mysql数据库**
+
+（1）导错驱动包，应该把mysql-connector-java-5.1.27-bin.jar导入/opt/module/hive/lib的不是这个包。错把mysql-connector-java-5.1.27.tar.gz导入hive/lib包下。
+
+（2）修改user表中的主机名称没有都修改为%，而是修改为localhost
+
+**2）hive默认的输入格式处理是CombineHiveInputFormat，会对小文件进行合并。**
+
+```
+hive (default)> set hive.input.format;
+hive.input.format=org.apache.hadoop.hive.ql.io.CombineHiveInputFormat
+```
+
+可以采用HiveInputFormat就会根据分区数输出相应的文件。
+
+```
+hive (default)> set hive.input.format=org.apache.hadoop.hive.ql.io.HiveInputFormat;
+```
+
+**3）不能执行mapreduce程序**
+
+可能是hadoop的yarn没开启。
+
+**4）启动mysql服务时，报MySQL server PID file could not be found!异常。**
+
+在/var/lock/subsys/mysql路径下创建hadoop102.pid，并在文件中添加内容：4396
+
+**5）报service mysql status MySQL is not running, but lock file (/var/lock/subsys/mysql[失败])异常。**
+
+解决方案：在/var/lib/mysql 目录下创建： -rw-rw----. 1 mysql mysql    5 12月 22 16:41 hadoop102.pid 文件，并修改权限为 777。
+
+**6）JVM堆内存溢出**
+
+描述：java.lang.OutOfMemoryError: Java heap space
+
+解决：在yarn-site.xml中加入如下代码
+
+```
+<property>
+	<name>yarn.scheduler.maximum-allocation-mb</name>
+	<value>2048</value>
+</property>
+<property>
+  	<name>yarn.scheduler.minimum-allocation-mb</name>
+  	<value>2048</value>
+</property>
+<property>
+	<name>yarn.nodemanager.vmem-pmem-ratio</name>
+	<value>2.1</value>
+</property>
+<property>
+	<name>mapred.child.java.opts</name>
+	<value>-Xmx1024m</value>
+</property>
+```
+
+**7）虚拟内存限制**
+
+在yarn-site.xml中添加如下配置:
+
+```
+<property>
+    <name>yarn.nodemanager.vmem-check-enabled</name>
+    <value>false</value>
+ </property>
+```
+
