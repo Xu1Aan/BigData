@@ -428,7 +428,7 @@ hive> select * from test;
 
 ```
 [xu1an@hadoop202 hive]$ hive --service metastore
-2020-04-24 16:58:08: Starting Hive Metastore Server
+2022-04-24 16:58:08: Starting Hive Metastore Server
 注意: 启动后窗口不能再操作，需打开一个新的shell窗口做别的操作
 ```
 
@@ -2381,9 +2381,9 @@ hive (default)> select * from emp distribute by deptno sort by deptno;
 **1）引入分区表（需要根据日期对日志进行管理,通过部门信息模拟）**
 
 ```
-dept_20200401.log
-dept_20200402.log
-dept_20200403.log
+dept_20220401.log
+dept_20220402.log
+dept_20220403.log
 ……
 ```
 
@@ -2403,21 +2403,21 @@ row format delimited fields terminated by '\t';
 
 （1）数据准备
 
-dept_20200401.log
+dept_20220401.log
 
 ```
 10	ACCOUNTING	1700
 20	RESEARCH	1800
 ```
 
-dept_20200402.log
+dept_20220402.log
 
 ```
 30	SALES	1900
 40	OPERATIONS	1700
 ```
 
-dept_20200403.log
+dept_20220403.log
 
 ```
 50	TEST	2000
@@ -2427,9 +2427,9 @@ dept_20200403.log
 （2）加载数据
 
 ```mysql
-hive (default)> load data local inpath '/opt/module/hive/datas/dept_20200401.log' into table dept_partition partition(day='20200401');
-hive (default)> load data local inpath '/opt/module/hive/datas/dept_20200402.log' into table dept_partition partition(day='20200402');
-hive (default)> load data local inpath '/opt/module/hive/datas/dept_20200403.log' into table dept_partition partition(day='20200403');
+hive (default)> load data local inpath '/opt/module/hive/datas/dept_20220401.log' into table dept_partition partition(day='20220401');
+hive (default)> load data local inpath '/opt/module/hive/datas/dept_20220402.log' into table dept_partition partition(day='20220402');
+hive (default)> load data local inpath '/opt/module/hive/datas/dept_20220403.log' into table dept_partition partition(day='20220403');
 ```
 
 注意：分区表加载数据时，必须指定分区
@@ -2441,19 +2441,19 @@ hive (default)> load data local inpath '/opt/module/hive/datas/dept_20200403.log
 单分区查询
 
 ```mysql
-hive (default)> select * from dept_partition where day='20200401';
+hive (default)> select * from dept_partition where day='20220401';
 ```
 
 多分区联合查询
 
 ```mysql
-hive (default)> select * from dept_partition where day='20200401'
+hive (default)> select * from dept_partition where day='20220401'
               union
-              select * from dept_partition where day='20200402'
+              select * from dept_partition where day='20220402'
               union
-              select * from dept_partition where day='20200403';
-hive (default)> select * from dept_partition where day='20200401' or
-                day='20200402' or day='20200403' ;			
+              select * from dept_partition where day='20220403';
+hive (default)> select * from dept_partition where day='20220401' or
+                day='20220402' or day='20220403' ;			
 ```
 
 **5）增加分区**
@@ -2461,13 +2461,13 @@ hive (default)> select * from dept_partition where day='20200401' or
 创建单个分区
 
 ```mysql
-hive (default)> alter table dept_partition add partition(day='20200404') ;
+hive (default)> alter table dept_partition add partition(day='20220404') ;
 ```
 
 同时创建多个分区
 
 ```mysql
-hive (default)> alter table dept_partition add partition(day='20200405') partition(day='20200406');
+hive (default)> alter table dept_partition add partition(day='20220405') partition(day='20220406');
 ```
 
 **6）删除分区**
@@ -2475,13 +2475,13 @@ hive (default)> alter table dept_partition add partition(day='20200405') partiti
 删除单个分区
 
 ```mysql
-hive (default)> alter table dept_partition drop partition (day='20200406');
+hive (default)> alter table dept_partition drop partition (day='20220406');
 ```
 
 同时删除多个分区
 
 ```mysql
-hive (default)> alter table dept_partition drop partition (day='20200404'), partition(day='20200405');
+hive (default)> alter table dept_partition drop partition (day='20220404'), partition(day='20220405');
 ```
 
 **7）查看分区表有多少分区**
@@ -2519,14 +2519,14 @@ hive (default)> create table dept_partition2(
 （1）加载数据到二级分区表中
 
 ```mysql
-hive (default)> load data local inpath '/opt/module`/hive/datas/dept_20200401.log' into table
-dept_partition2 partition(day='20200401', hour='12');
+hive (default)> load data local inpath '/opt/module`/hive/datas/dept_20220401.log' into table
+dept_partition2 partition(day='20220401', hour='12');
 ```
 
 （2）查询分区数据
 
 ```
-hive (default)> select * from dept_partition2 where day='20200401' and hour='12';
+hive (default)> select * from dept_partition2 where day='20220401' and hour='12';
 ```
 
 **3）把数据直接上传到分区目录上，让分区表和数据产生关联的三种方式**
@@ -2535,14 +2535,14 @@ hive (default)> select * from dept_partition2 where day='20200401' and hour='12'
 
 ```shell
 hive (default)> dfs -mkdir -p
- /user/hive/warehouse/mydb.db/dept_partition2/day=20200401/hour=13;
-hive (default)> dfs -put /opt/module/datas/dept_20200401.log  /user/hive/warehouse/mydb.db/dept_partition2/day=20200401/hour=13;
+ /user/hive/warehouse/mydb.db/dept_partition2/day=20220401/hour=13;
+hive (default)> dfs -put /opt/module/datas/dept_20220401.log  /user/hive/warehouse/mydb.db/dept_partition2/day=20220401/hour=13;
 ```
 
 查询数据（查询不到刚上传的数据）
 
 ```mysql
-hive (default)> select * from dept_partition2 where day='20200401' and hour='13';
+hive (default)> select * from dept_partition2 where day='20220401' and hour='13';
 ```
 
 执行修复命令
@@ -2554,7 +2554,7 @@ hive> msck repair table dept_partition2;
 再次查询数据
 
 ```
-hive (default)> select * from dept_partition2 where day='20200401' and hour='13';
+hive (default)> select * from dept_partition2 where day='20220401' and hour='13';
 ```
 
 （2）方式二：上传数据后添加分区
@@ -2563,8 +2563,8 @@ hive (default)> select * from dept_partition2 where day='20200401' and hour='13'
 
 ```mysql
 hive (default)> dfs -mkdir -p
- /user/hive/warehouse/mydb.db/dept_partition2/day=20200401/hour=14;
-hive (default)> dfs -put /opt/module/hive/datas/dept_20200401.log  /user/hive/warehouse/mydb.db/dept_partition2/day=20200401/hour=14;
+ /user/hive/warehouse/mydb.db/dept_partition2/day=20220401/hour=14;
+hive (default)> dfs -put /opt/module/hive/datas/dept_20220401.log  /user/hive/warehouse/mydb.db/dept_partition2/day=20220401/hour=14;
 ```
 
 执行添加分区
@@ -2576,7 +2576,7 @@ hive (default)> alter table dept_partition2 add partition(day='201709',hour='14'
 查询数据
 
 ```mysql
-hive (default)> select * from dept_partition2 where day='20200401' and hour='14';
+hive (default)> select * from dept_partition2 where day='20220401' and hour='14';
 ```
 
 （3）方式三：创建文件夹后load数据到分区
@@ -2585,20 +2585,20 @@ hive (default)> select * from dept_partition2 where day='20200401' and hour='14'
 
 ```mysql
 hive (default)> dfs -mkdir -p
- /user/hive/warehouse/mydb.db/dept_partition2/day=20200401/hour=15;
+ /user/hive/warehouse/mydb.db/dept_partition2/day=20220401/hour=15;
 ```
 
 上传数据
 
 ```mysql
-hive (default)> load data local inpath '/opt/module/hive/datas/dept_20200401.log' into table
- dept_partition2 partition(day='20200401',hour='15');
+hive (default)> load data local inpath '/opt/module/hive/datas/dept_20220401.log' into table
+ dept_partition2 partition(day='20220401',hour='15');
 ```
 
 查询数据
 
 ```mysql
-hive (default)> select * from dept_partition2 where day='20200401' and hour='15';
+hive (default)> select * from dept_partition2 where day='20220401' and hour='15';
 ```
 
 #### 7.1.3 动态分区
@@ -2891,7 +2891,7 @@ load data local inpath '/opt/module/hive/datas/emp_sex.txt' into table emp_sex;
 
 **5）按需求查询数据**
 
-```
+```mysql
 select 
   dept_id,
   sum(case sex when '男' then 1 else 0 end) male_count,
@@ -2900,6 +2900,18 @@ from
   emp_sex
 group by
   dept_id;
+```
+
+或者
+
+```MySQL
+select 
+  dept_Id, 
+  sum(if(sex='男',1,0))   man, 
+  sum(if(sex='女',1,0))  female
+from
+  emp_sex 
+group by dept_Id    
 ```
 
 #### 8.2.3 行转列
@@ -3238,6 +3250,126 @@ name    subject score   rp      drp     rmp
 扩展：求出每门学科前三名的学生？
 
 #### 8.2.7 其他常用函数
+
+一、常用日期函数
+
+1. unix_timestamp:返回当前或指定时间的时间戳	
+    select unix_timestamp();
+    select unix_timestamp("2020-10-28",'yyyy-MM-dd');
+
+  desc function unix_tmiestamp
+
+2. from_unixtime：将时间戳转为日期格式
+select from_unixtime(1603843200);
+
+3. current_date：当前日期
+select current_date;
+
+4. current_timestamp：当前的日期加时间
+select current_timestamp;
+
+5. to_date：抽取日期部分
+select to_date('2020-10-28 12:12:12');
+
+6. year：获取年
+select year('2020-10-28 12:12:12');
+
+7. month：获取月
+select month('2020-10-28 12:12:12');
+
+8. day：获取日
+select day('2020-10-28 12:12:12');
+
+9. hour：获取时
+select hour('2020-10-28 12:13:14');
+
+10. minute：获取分
+select minute('2020-10-28 12:13:14');
+
+11. second：获取秒
+select second('2020-10-28 12:13:14');
+
+12. weekofyear：当前时间是一年中的第几周
+select weekofyear('2020-10-28 12:12:12');
+
+13. dayofmonth：当前时间是一个月中的第几天
+select dayofmonth('2020-10-28 12:12:12');
+
+14. months_between： 两个日期间的月份
+select months_between('2020-04-01','2020-10-28');
+
+15. add_months：日期加减月
+select add_months('2020-10-28',-3);
+
+16. datediff：两个日期相差的天数
+select datediff('2020-11-04','2020-10-28');
+
+17. date_add：日期加天数
+select date_add('2020-10-28',4);
+
+18. date_sub：日期减天数
+select date_sub('2020-10-28',-4);
+
+19. last_day：日期的当月的最后一天
+select last_day('2020-02-30');
+
+20. date_format(): 格式化日期
+select date_format('2020-10-28 12:12:12','yyyy/MM/dd HH:mm:ss');
+
+
+二、常用取整函数
+21. round： 四舍五入
+select round(3.14);
+select round(3.54);
+
+22. ceil：  向上取整
+select ceil(3.14);
+select ceil(3.54);
+
+floor： 向下取整
+23. select floor(3.14);
+select floor(3.54);
+
+三、常用字符串操作函数
+24. upper： 转大写
+select upper('low');
+
+25. lower： 转小写
+select lower('low');
+
+26. length： 长度
+select length("atguigu");
+
+27. trim：  前后去空格
+select trim(" atguigu ");
+
+28. lpad： 向左补齐，到指定长度
+select lpad('atguigu',9,'g');
+
+29. rpad：  向右补齐，到指定长度
+select rpad('atguigu',9,'g');
+
+30. regexp_replace：使用正则表达式匹配目标字符串，匹配成功后替换！
+SELECT regexp_replace('2020/10/25', '/', '-');
+
+四、集合操作
+31. size： 集合中元素的个数
+select size(friends) from test3;
+
+32. map_keys： 返回map中的key
+select map_keys(children) from test3;
+
+33. map_values: 返回map中的value
+select map_values(children) from test3;
+
+34. array_contains: 判断array中是否包含某个元素
+select array_contains(friends,'bingbing') from test3;
+
+35. sort_array： 将array中的元素排序
+select sort_array(friends) from test3;
+
+五、多维分析
+36. grouping sets:多维分析
 
 ### 8.3 自定义函数
 
@@ -4795,7 +4927,7 @@ public class EtlMapper extends Mapper<LongWritable, Text,Text, NullWritable> {
 **3）ETL之Driver**
 
 ```
- package com.atguigu.gulivideo.etl;
+ package com.xu1an.gulivideo.etl;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.Path;
@@ -4828,18 +4960,18 @@ public class EtlDriver {
 **5）上传原始数据到HDFS**
 
 ```
-[atguigu@hadoop102 datas] pwd
+[xu1an@hadoop102 datas] pwd
 /opt/module/hive/datas
-[atguigu@hadoop102 datas] hadoop fs -mkdir -p  /gulivideo/video
-[atguigu@hadoop102 datas] hadoop fs -mkdir -p  /gulivideo/user
-[atguigu@hadoop102 datas] hadoop fs -put gulivideo/user/user.txt   /gulivideo/user
-[atguigu@hadoop102 datas] hadoop fs -put gulivideo/video/*.txt   /gulivideo/video
+[xu1an@hadoop102 datas] hadoop fs -mkdir -p  /gulivideo/video
+[xu1an@hadoop102 datas] hadoop fs -mkdir -p  /gulivideo/user
+[xu1an@hadoop102 datas] hadoop fs -put gulivideo/user/user.txt   /gulivideo/user
+[xu1an@hadoop102 datas] hadoop fs -put gulivideo/video/*.txt   /gulivideo/video
 ```
 
 **6）ETL数据**
 
 ```
-[atguigu@hadoop102 datas] hadoop jar  etl.jar  com.atguigu.hive.etl.EtlDriver /gulivideo/video /gulivideo/video/output
+[xu1an@hadoop102 datas] hadoop jar  etl.jar  com.xu1an.hive.etl.EtlDriver /gulivideo/video /gulivideo/video/output
 ```
 
 #### 11.3.2 准备表
@@ -4943,21 +5075,21 @@ Tez可以将多个有依赖的作业转换为一个作业，这样只需写一�
 **1）将tez安装包拷贝到集群，并解压tar包**
 
 ```
-[atguigu@hadoop102 software]$ mkdir /opt/module/tez
-[atguigu@hadoop102 software]$ tar -zxvf /opt/software/tez-0.10.1-SNAPSHOT-minimal.tar.gz -C /opt/module/tez
+[xu1an@hadoop102 software]$ mkdir /opt/module/tez
+[xu1an@hadoop102 software]$ tar -zxvf /opt/software/tez-0.10.1-SNAPSHOT-minimal.tar.gz -C /opt/module/tez
 ```
 
 **2）上传tez依赖到HDFS**
 
 ```
-[atguigu@hadoop102 software]$ hadoop fs -mkdir /tez
-[atguigu@hadoop102 software]$ hadoop fs -put /opt/software/tez-0.10.1-SNAPSHOT.tar.gz /tez
+[xu1an@hadoop102 software]$ hadoop fs -mkdir /tez
+[xu1an@hadoop102 software]$ hadoop fs -put /opt/software/tez-0.10.1-SNAPSHOT.tar.gz /tez
 ```
 
 **3）新建tez-site.xml**
 
 ```
-[atguigu@hadoop102 software]$ vim $HADOOP_HOME/etc/hadoop/tez-site.xml
+[xu1an@hadoop102 software]$ vim $HADOOP_HOME/etc/hadoop/tez-site.xml
 ```
 
 添加如下内容：
@@ -5000,7 +5132,7 @@ Tez可以将多个有依赖的作业转换为一个作业，这样只需写一�
 **4）修改Hadoop环境变量**
 
 ```
-[atguigu@hadoop102 software]$ vim $HADOOP_HOME/etc/hadoop/shellprofile.d/tez.sh
+[xu1an@hadoop102 software]$ vim $HADOOP_HOME/etc/hadoop/shellprofile.d/tez.sh
 添加Tez的Jar包相关信息
 hadoop_add_profile tez
 function _tez_hadoop_classpath
@@ -5014,7 +5146,7 @@ function _tez_hadoop_classpath
 **5）修改Hive的计算引擎**
 
 ```
-[atguigu@hadoop102 software]$ vim $HIVE_HOME/conf/hive-site.xml
+[xu1an@hadoop102 software]$ vim $HIVE_HOME/conf/hive-site.xml
 ```
 
 添加
@@ -5033,7 +5165,7 @@ function _tez_hadoop_classpath
 **6）解决日志Jar包冲突**
 
 ```
-[atguigu@hadoop102 software]$ rm /opt/module/tez/lib/slf4j-log4j12-1.7.10.jar
+[xu1an@hadoop102 software]$ rm /opt/module/tez/lib/slf4j-log4j12-1.7.10.jar
 ```
 
 ### 11.4 业务分析
