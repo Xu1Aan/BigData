@@ -2926,6 +2926,14 @@ CONCAT_WS(separator, str1, str2,...)：它是一个特殊形式的 CONCAT()。�
 
 COLLECT_SET(col)：函数只接受基本数据类型，它的主要作用是将某字段的值进行去重汇总，产生array类型字段。
 
+```
+  1) 相关函数: 
+     concat(): 字符串拼接
+     concat_ws(): 字符串拼接 , CONCAT_WS must be "string or array<string>"
+     collect_set(): 去重汇总
+     collect_list(): 汇总
+```
+
 **2）数据准备**
 
 | name   | constellation | blood_type |
@@ -2961,7 +2969,7 @@ vim person_info.txt
 
 **5）创建hive表并导入数据**
 
-```
+```mysql
 create table person_info(
 name string, 
 constellation string, 
@@ -2972,7 +2980,7 @@ load data local inpath "/opt/module/hive/datas/person_info.txt" into table perso
 
 **6）按需求查询数据**
 
-```
+```mysql
 SELECT t1.c_b , CONCAT_WS("|",collect_set(t1.name))
 FROM (
 SELECT NAME ,CONCAT_WS(',',constellation,blood_type) c_b
@@ -2992,6 +3000,12 @@ LATERAL VIEW
 用法：LATERAL VIEW udtf(expression) tableAlias AS columnAlias
 
 解释：用于和split, explode等UDTF一起使用，它能够将一列数据拆成多行数据，在此基础上可以对拆分后的数据进行聚合。
+
+```
+ 1） 相关函数
+     explode(): 将数组或者map拆分成多行
+     LATERAL VIEW : 侧写表(虚拟表)
+```
 
 **2）数据准备**
 
@@ -3087,7 +3101,7 @@ tony,2017-01-07,50
 jack,2017-01-08,55
 mart,2017-04-08,62
 mart,2017-04-09,68
-neil,2017-05-10,12
+neil,2017-05-10,12  
 mart,2017-04-11,75
 neil,2017-06-12,80
 mart,2017-04-13,94
@@ -3126,52 +3140,185 @@ load data local inpath "/opt/module/hive/datas/business.txt" into table business
 
 （1）查询在2017年4月份购买过的顾客及总人数
 
-```
+```mysql
 select name,count(*) over () 
 from business 
-where substring(orderdate,1,7) = '2017-04' 
+where substring(orderdate,0,7) = '2017-04' 
 group by name;
+```
+
+或者
+
+```mysql
+查询在2017年4月份购买过的顾客
+select
+  name, orderdate, cost 
+from 
+  business 
+where month(orderdate) = '4'
+
 ```
 
 （2）查询顾客的购买明细及月购买总额
 
-```
+- 查询顾客的购买明细及所有顾客的月购买总额
+
+```mysql
 select name,orderdate,cost,sum(cost) over(partition by month(orderdate)) from business;
+```
+
+或者
+
+```mysql
+select
+  name, 
+  orderdate, 
+  cost , 
+  sum(cost) over(partition by substring(orderdate,0,7))  month_cost
+from
+  business 
+```
+
+- 查询顾客的购买明细及每个顾客的月购买总额
+
+```mysql
+select
+  name, 
+  orderdate,
+  cost, 
+  sum(cost) over(partition by name, substring(orderdate,0,7)) name_month_cost
+from 
+  business
 ```
 
 （3）将每个顾客的cost按照日期进行累加
 
-```
+```mysql
 select name,orderdate,cost, 
-sum(cost) over() as sample1,--所有行相加 
-sum(cost) over(partition by name) as sample2,--按name分组，组内数据相加 
-sum(cost) over(partition by name order by orderdate) as sample3,--按name分组，组内数据累加 
-sum(cost) over(partition by name order by orderdate rows between UNBOUNDED PRECEDING and current row ) as sample4 ,--和sample3一样,由起点到当前行的聚合 
-sum(cost) over(partition by name order by orderdate rows between 1 PRECEDING and current row) as sample5, --当前行和前面一行做聚合 
-sum(cost) over(partition by name order by orderdate rows between 1 PRECEDING AND 1 FOLLOWING ) as sample6,--当前行和前边一行及后面一行 
-sum(cost) over(partition by name order by orderdate rows between current row and UNBOUNDED FOLLOWING ) as sample7 --当前行及后面所有行 
+sum(cost) over() as sample1,-- 所有行相加 
+sum(cost) over(partition by name) as sample2,-- 按name分组，组内数据相加 
+sum(cost) over(partition by name order by orderdate) as sample3,-- 按name分组，组内数据累加 
+sum(cost) over(partition by name order by orderdate rows between UNBOUNDED PRECEDING and current row ) as sample4 ,-- 和sample3一样,由起点到当前行的聚合 
+sum(cost) over(partition by name order by orderdate rows between 1 PRECEDING and current row) as sample5, -- 当前行和前面一行做聚合 
+sum(cost) over(partition by name order by orderdate rows between 1 PRECEDING AND 1 FOLLOWING ) as sample6,-- 当前行和前边一行及后面一行 
+sum(cost) over(partition by name order by orderdate rows between current row and UNBOUNDED FOLLOWING ) as sample7 -- 当前行及后面所有行 
 from business;
 ```
 
 rows必须跟在Order by 子句之后，对排序的结果进行限制，使用固定的行数来限制分区中的数据行数量
 
+- 将所有顾客的cost按照日期进行累加
+
+```mysql
+select 
+  name, 
+  orderdate,
+  cost,
+  sum(cost) over(order by orderdate ) lj
+from 
+  business 
+  
+-- 效果相同
+select 
+  name, 
+  orderdate,
+  cost,
+  sum(cost) over(partition by name order by orderdate rows between UNBOUNDED PRECEDING and CURRENT ROW) lj
+from 
+  business 
+```
+
+- 求 所有顾客的cost  第一行 到 当前行 累加
+        所有顾客的cost 上一行 到 当前行 的累加和 
+        所有顾客的cost 上一行 到 下一行 的累加和
+        所有顾客的cost 当前行 到 下一行 的累加和
+        所有顾客的cost 当前行 到 最后一行的累加和
+
+```mysql
+select
+  name,
+  orderdate,
+  cost,
+  sum(cost) over(order by orderdate rows between UNBOUNDED PRECEDING and CURRENT ROW) f_c,
+  sum(cost) over(order by orderdate rows between 1 PRECEDING and CURRENT ROW ) p_c,
+  sum(cost) over(order by orderdate rows between 1 PRECEDING and 1 FOLLOWING ) p_n,
+  sum(cost) over(order by orderdate rows between CURRENT ROW and 1 FOLLOWING ) c_n,
+  sum(cost) over(order by orderdate rows between CURRENT ROW and UNBOUNDED FOLLOWING ) c_l
+from
+  business
+```
+
 （4）查看顾客上次的购买时间
 
-```
+```mysql
 select name,orderdate,cost, 
 lag(orderdate,1,'1900-01-01') over(partition by name order by orderdate ) as time1, lag(orderdate,2) over (partition by name order by orderdate) as time2 
 from business;
 ```
 
+- 查询每个顾客上次的购买时间 及 下一次的购买时间 
+
+```mysql
+select
+   name,
+   cost, 
+   orderdate c_orderdate,
+   lag(orderdate ,1 ,'1970-01-01') over(partition by name  order by orderdate) p_orderdate,
+   lead(orderdate ,1 ,'9999-01-01') over(partition by name  order by orderdate) p_orderdate
+from 
+  business
+```
+
 （5）查询前20%时间的订单信息
 
-```
+```mysql
 select * from (
     select name,orderdate,cost, ntile(5) over(order by orderdate) sorted
     from business
 ) t
 where sorted = 1;
 ```
+
+或者
+
+```
+select 
+  t1.name, 
+  t1.orderdate,
+  t1.cost ,
+  t1.gid
+from 
+(select
+  name, 
+  orderdate,
+  cost, 
+  ntile(5) over(order by orderdate ) gid
+from 
+  business) t1
+where t1.gid = 1 ; 
+```
+
+**总结**
+
+**over():** 会为每条数据都开启一个窗口. 默认的窗口大小就是当前数据集的大小.
+**over(partition by ....) :** 会按照指定的字段进行分区， 将分区字段的值相同的数据划分到相同的区。
+                          每个区中的每条数据都会开启一个窗口.每条数据的窗口大小默认为当前分区数据集的大小.
+**over(order by ....) :** 会在窗口中按照指定的字段对数据进行排序. 
+                      会为每条数据都开启一个窗口,默认的窗口大小为从数据集开始到当前行.  
+
+**over(partition by .... order by ....) :**会按照指定的字段进行分区， 将分区字段的值相同的数据划分到相同的区,
+                                       在每个区中会按照指定的字段进行排序. 
+                                       会为每条数据都开启一个窗口,默认的窗口大小为当前分区中从数据集开始到当前行.                                             
+**over(partition by ... order by ... rows between ... and ....) :** 指定每条数据的窗口大小.
+
+**关键字:**
+  order by :       全局排序 或者 窗口函数中排序.
+  distribute by :  分区 
+  sort by :        区内排序
+  cluster by :     分区排序
+  partition by :   窗口函数中分区
+  partitioned by : 建表指定分区字段
+  clustered by :   建表指定分桶字段
 
 #### 8.2.6 Rank
 
@@ -3182,6 +3329,13 @@ RANK() 排序相同时会重复，总数不会变
 DENSE_RANK() 排序相同时会重复，总数会减少
 
 ROW_NUMBER() 会根据顺序计算
+
+```
+  1) 相关函数
+     rank()
+     dense_rank()
+     row_number()  
+```
 
 **2）数据准备**
 
@@ -3473,7 +3627,7 @@ import org.apache.hadoop.hive.serde2.objectinspector.primitive.PrimitiveObjectIn
  */
 public class MyStringLength extends GenericUDF {
     /**
-     *
+     * 初始化方法
      * @param arguments 输入参数类型的鉴别器对象
      * @return 返回值类型的鉴别器对象
      * @throws UDFArgumentException
@@ -3550,7 +3704,7 @@ hive
 
 **1）代码实现**
 
-```
+```java
 package com.xu1an.udtf;
 
 import org.apache.hadoop.hive.ql.exec.UDFArgumentException;
