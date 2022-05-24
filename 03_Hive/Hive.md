@@ -3828,6 +3828,8 @@ On a single core of a Core i7 processor in 64-bit mode, Snappy compresses at abo
 
 #### 9.1.2 压缩参数配置
 
+要在Hadoop中启用压缩，可以配置如下参数（mapred-site.xml文件中）：
+
 |                       参数                       | 默认值                                                       | 阶段        | 建议                                         |
 | :----------------------------------------------: | ------------------------------------------------------------ | ----------- | -------------------------------------------- |
 | io.compression.codecs （在core-site.xml中配置）  | org.apache.hadoop.io.compress.DefaultCodec,  org.apache.hadoop.io.compress.GzipCodec,  org.apache.hadoop.io.compress.BZip2Codec,  org.apache.hadoop.io.compress.Lz4Codec | 输入压缩    | Hadoop使用文件扩展名判断是否支持某种编解码器 |
@@ -3910,7 +3912,7 @@ Hive支持的存储数据的格式主要有：TEXTFILE 、SEQUENCEFILE、ORC、P
 
 #### 9.4.1 列式存储和行式存储
 
-![]()![列式存储和行式存储](E:\learning\04_java\01_笔记\BigData\03_Hive\picture\列式存储和行式存储.png)
+![列式存储和行式存储](E:\learning\04_java\01_笔记\BigData\03_Hive\picture\列式存储和行式存储.png)
 
 如图所示左边为逻辑表，右边第一个为行式存储，第二个为列式存储。
 
@@ -3974,7 +3976,7 @@ Parquet文件是以二进制方式存储的，所以是不可以直接读取的�
 
 （1）创建表，存储数据格式为TEXTFILE
 
-```
+```mysql
 create table log_text (
 track_time string,
 url string,
@@ -4006,7 +4008,7 @@ hive (default)> dfs -du -h /user/hive/warehouse/log_text;
 
 （1）创建表，存储数据格式为ORC
 
-```
+```mysql
 create table log_orc(
 track_time string,
 url string,
@@ -4023,7 +4025,7 @@ tblproperties("orc.compress"="NONE"); -- 设置orc存储不使用压缩
 
 （2）向表中加载数据
 
-```
+```mysql
 hive (default)> insert into table log_orc select * from log_text ;
 ```
 
@@ -4039,7 +4041,7 @@ hive (default)> dfs -du -h /user/hive/warehouse/log_orc/ ;
 
 （1）创建表，存储数据格式为parquet
 
-```
+```mysql
 create table log_parquet(
 track_time string,
 url string,
@@ -4224,7 +4226,7 @@ hive (default)> dfs -du -h /user/hive/warehouse/log_parquet_snappy / ;
 
 ## 10 企业级调优 
 
-#### 10.1 执行计划（Explain）
+### 10.1 执行计划（Explain）
 
 **1）基本语法**
 
@@ -4323,7 +4325,7 @@ hive (default)> explain extended select * from emp;
 hive (default)> explain extended select deptno, avg(sal) avg_sal from emp group by deptno;
 ```
 
-#### 10.2 Fetch抓取
+### 10.2 Fetch抓取
 
 Fetch抓取是指，Hive中对某些情况的查询可以不必使用MapReduce计算。例如：SELECT * FROM employees;在这种情况下，Hive可以简单地读取employee对应的存储目录下的文件，然后输出查询结果到控制台。
 
@@ -4364,7 +4366,7 @@ hive (default)> select ename from emp;
 hive (default)> select ename from emp limit 3;
 ```
 
-#### 10.3 本地模式
+### 10.3 本地模式
 
 大多数的Hadoop Job是需要Hadoop提供的完整的可扩展性来处理大数据集的。不过，有时Hive的输入数据量是非常小的。在这种情况下，为查询触发执行任务消耗的时间可能会比实际job的执行时间要多的多。对于大多数这种情况，Hive可以通过本地模式在单台机器上处理所有的任务。对于小数据集，执行时间可以明显被缩短。
 
@@ -4383,7 +4385,7 @@ set hive.exec.mode.local.auto.input.files.max=10;
 （1）开启本地模式，并执行查询语句
 
 ```
-![MapJoin](E:\learning\04_java\01_笔记\BigData\03_Hive\picture\MapJoin.png)hive (default)> set hive.exec.mode.local.auto=true; 
+hive (default)> set hive.exec.mode.local.auto=true; 
 hive (default)> select * from emp cluster by deptno;
 Time taken: 1.328 seconds, Fetched: 14 row(s)
 ```
@@ -4396,7 +4398,7 @@ hive (default)> select * from emp cluster by deptno;
 Time taken: 20.09 seconds, Fetched: 14 row(s)
 ```
 
-#### 10.4 表的优化
+### 10.4 表的优化
 
 #### 10.4.1 小表大表Join(MapJoin)
 
@@ -4426,7 +4428,7 @@ set hive.mapjoin.smalltable.filesize = 25000000;
 
 **3）MapJoin工作机制**
 
-![](\picture\MapJoin.png)
+![](.\picture\MapJoin.png)
 
 **4）建大表、小表和JOIN后表的语句**
 
@@ -4565,10 +4567,9 @@ set mapreduce.job.reduces = 5;
 （2）JOIN两张表
 
 ```
-随机分布空null值
-（1）设置5个reduce个数
-set mapreduce.job.reduces = 5;
-（2）JOIN两张表
+insert overwrite table jointable
+select n.* from nullidtable n full join bigtable o on 
+nvl(n.id,rand()) = o.id;
 ```
 
 结果：如下图所示，可以看出来，消除了数据倾斜，负载均衡reducer的资源消耗
@@ -4881,7 +4882,7 @@ SET hive.merge.size.per.task = 268435456;
 SET hive.merge.smallfiles.avgsize = 16777216;
 ```
 
-##### 10.5.3 合理设置Reduce数
+#### 10.5.3 合理设置Reduce数
 
 **1）调整reduce个数方法一**
 
@@ -4941,13 +4942,13 @@ Hive可以通过设置防止一些危险操作：
 **1）分区表不使用分区过滤**
 
   将hive.strict.checks.no.partition.filter设置为true时，对于分区表，除非where语句中含有分区字段过滤条件来限制范围，否则不允许执行。换句话说，就是用户不允许扫描所有分区。进行这个限制的原因是，通常分区表都拥有非常大的数据集，而且数据增加迅速。没有进行分区限制的查询可能会消耗令人不可接受的巨大资源来处理这个表。
- **2）使用order by****没有limit****过滤**
+ **2）使用order by没有limit过滤**
 
  将hive.strict.checks.orderby.no.limit设置为true时，对于使用了order by语句的查询，要求必须使用limit语句。因为order by为了执行排序过程会将所有的结果数据分发到同一个Reducer中进行处理，强制要求用户增加这个LIMIT语句可以防止Reducer额外执行很长一段时间。
 
 **3）笛卡尔积**
 
- 将hive.strict.checks.cartesian.product设置为true时，会限制笛卡尔积的查询。对关系型数据库非常了解的用户可能期望在 执行JOIN查询的时候不使用ON语句而是使用where语句，这样关系数据库的执行优化器就可以高效地将WHERE语句转化成那个ON语句。不幸的是，Hive并不会执行这种优化，因此，如果表足够大，那么这个查询就会出现不可控的情况。
+ 将hive.strict.checks.cartesian.product设置为true时，会限制笛卡尔积的查询。对关系型数据库非常了解的用户可能期望在 执行JOIN查询的时候不使用ON语句而是使用where语句，这样关系数据库的执行优化器就可以高效地将WHERE语句转化成那个ON语句。不幸的是，Hive并不会执行这种优化，因此，如果表足够大，那么这个查询就会出现不可控的情况。 
 
 ### 10.8 JVM重用
 
@@ -5220,7 +5221,7 @@ insert into table gulivideo_user_orc select * from gulivideo_user_ori;
 
 Tez是一个Hive的运行引擎，性能优于MR。为什么优于MR呢？看下。
 
-![安装Tez引擎](\picture\安装Tez引擎.png)
+![安装Tez引擎](.\picture\安装Tez引擎.png)
 
 用Hive直接编写MR程序，假设有四个有依赖关系的MR作业，上图中，绿色是Reduce Task，云状表示写屏蔽，需要将中间结果持久化写到HDFS。
 
