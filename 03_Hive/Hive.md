@@ -5372,8 +5372,7 @@ lateral VIEW explode(category) gulivideo_orc_tmp AS category_name
 GROUP BY 
     t1.category_name 
 ORDER BY
-    hot 
-DESC 
+    hot DESC 
 LIMIT 10
 ```
 
@@ -5512,7 +5511,7 @@ LIMIT 10
 
 最终代码：
 
-```
+```mysql
 SELECT 
   t2.videoId,
   t2.views,

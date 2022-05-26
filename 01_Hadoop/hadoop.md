@@ -113,7 +113,7 @@ MapReduce将计算过程分为两个阶段：Map和Reduce
 
 ### 2.5 推荐系统框架图
 
-![](.\picture\推荐系统框架图.png)
+<img src=".\picture\推荐系统框架图.png" style="zoom:33%;" />
 
 ---
 
