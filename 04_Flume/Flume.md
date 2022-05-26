@@ -545,6 +545,8 @@ Flume支持将事件流向一个或者多个目的地。这种模式可以将相
 
 #### 3.3.3 负载均衡和故障转移
 
+![](.\picture\负载均衡和故障转移.png)
+
 Flume支持使用将多个sink逻辑上分到一个sink组，sink组配合不同的SinkProcessor可以实现负载均衡和错误恢复的功能。
 
 #### 3.3.4 聚合
@@ -572,13 +574,13 @@ Flume支持使用将多个sink逻辑上分到一个sink组，sink组配合不同
 在/opt/module/flume/job目录下创建group1文件夹
 
 ```
-[atguigu@hadoop102 job]$ cd group1/
+[xu1an@hadoop102 job]$ cd group1/
 ```
 
 在/opt/module/datas/目录下创建flume3文件夹
 
 ```
-[atguigu@hadoop102 datas]$ mkdir flume3
+[xu1an@hadoop102 datas]$ mkdir flume3
 ```
 
 （2）创建flume-file-flume.conf
@@ -588,7 +590,7 @@ Flume支持使用将多个sink逻辑上分到一个sink组，sink组配合不同
 编辑配置文件
 
 ```
-[atguigu@hadoop102 group1]$ vim flume-file-flume.conf
+[xu1an@hadoop102 group1]$ vim flume-file-flume.conf
 ```
 
 添加如下内容
@@ -638,7 +640,7 @@ a1.sinks.k2.channel = c2
 编辑配置文件
 
 ```
-[atguigu@hadoop102 group1]$ vim flume-flume-hdfs.conf
+[xu1an@hadoop102 group1]$ vim flume-flume-hdfs.conf
 ```
 
 添加如下内容
@@ -696,7 +698,7 @@ a2.sinks.k1.channel = c1
 编辑配置文件
 
 ```
-[atguigu@hadoop102 group1]$ vim flume-flume-dir.conf
+[xu1an@hadoop102 group1]$ vim flume-flume-dir.conf
 ```
 
 添加如下内容
@@ -733,20 +735,20 @@ a3.sinks.k1.channel = c2
 分别启动对应的flume进程：flume-flume-dir，flume-flume-hdfs，flume-file-flume。
 
 ```
-[atguigu@hadoop102 flume]$ bin/flume-ng agent --conf conf/ --name a3 --conf-file job/group1/flume-flume-dir.conf
+[xu1an@hadoop102 flume]$ bin/flume-ng agent --conf conf/ --name a3 --conf-file job/group1/flume-flume-dir.conf
 
-[atguigu@hadoop102 flume]$ bin/flume-ng agent --conf conf/ --name a2 --conf-file job/group1/flume-flume-hdfs.conf
+[xu1an@hadoop102 flume]$ bin/flume-ng agent --conf conf/ --name a2 --conf-file job/group1/flume-flume-hdfs.conf
 
-[atguigu@hadoop102 flume]$ bin/flume-ng agent --conf conf/ --name a1 --conf-file job/group1/flume-file-flume.conf
+[xu1an@hadoop102 flume]$ bin/flume-ng agent --conf conf/ --name a1 --conf-file job/group1/flume-file-flume.conf
 ```
 
 （6）启动Hadoop和Hive
 
 ```
-[atguigu@hadoop102 hadoop-2.7.2]$ sbin/start-dfs.sh
-[atguigu@hadoop103 hadoop-2.7.2]$ sbin/start-yarn.sh
+[xu1an@hadoop102 hadoop-2.7.2]$ sbin/start-dfs.sh
+[xu1an@hadoop103 hadoop-2.7.2]$ sbin/start-yarn.sh
 
-[atguigu@hadoop102 hive]$ bin/hive
+[xu1an@hadoop102 hive]$ bin/hive
 hive (default)>
 ```
 
@@ -757,9 +759,9 @@ hive (default)>
 （8）检查/opt/module/datas/flume3目录中数据
 
 ```
-[atguigu@hadoop102 flume3]$ ll
+[xu1an@hadoop102 flume3]$ ll
 总用量 8
--rw-rw-r--. 1 atguigu atguigu 5942 5月  22 00:09 1526918887550-3
+-rw-rw-r--. 1 xu1an xu1an 5942 5月  22 00:09 1526918887550-3
 ```
 
 #### 3.4.2 负载均衡和故障转移
@@ -779,7 +781,7 @@ hive (default)>
 在/opt/module/flume/job目录下创建group2文件夹
 
 ```
-[atguigu@hadoop102 job]$ cd group2/
+[xu1an@hadoop102 job]$ cd group2/
 ```
 
 （2）创建flume-netcat-flume.conf
@@ -789,7 +791,7 @@ hive (default)>
 编辑配置文件
 
 ```
-[atguigu@hadoop102 group2]$ vim flume-netcat-flume.conf
+[xu1an@hadoop102 group2]$ vim flume-netcat-flume.conf
 ```
 
 添加如下内容
@@ -839,7 +841,7 @@ a1.sinks.k2.channel = c1
 编辑配置文件
 
 ```
-[atguigu@hadoop102 group2]$ vim flume-flume-console1.conf
+[xu1an@hadoop102 group2]$ vim flume-flume-console1.conf
 ```
 
 添加如下内容
@@ -875,7 +877,7 @@ a2.sinks.k1.channel = c1
 编辑配置文件
 
 ```
-[atguigu@hadoop102 group2]$ vim flume-flume-console2.conf
+[xu1an@hadoop102 group2]$ vim flume-flume-console2.conf
 ```
 
 添加如下内容
@@ -909,11 +911,11 @@ a3.sinks.k1.channel = c2
 分别开启对应配置文件：flume-flume-console2，flume-flume-console1，flume-netcat-flume。
 
 ```
-[atguigu@hadoop102 flume]$ bin/flume-ng agent --conf conf/ --name a3 --conf-file job/group2/flume-flume-console2.conf -Dflume.root.logger=INFO,console
+[xu1an@hadoop102 flume]$ bin/flume-ng agent --conf conf/ --name a3 --conf-file job/group2/flume-flume-console2.conf -Dflume.root.logger=INFO,console
 
-[atguigu@hadoop102 flume]$ bin/flume-ng agent --conf conf/ --name a2 --conf-file job/group2/flume-flume-console1.conf -Dflume.root.logger=INFO,console
+[xu1an@hadoop102 flume]$ bin/flume-ng agent --conf conf/ --name a2 --conf-file job/group2/flume-flume-console1.conf -Dflume.root.logger=INFO,console
 
-[atguigu@hadoop102 flume]$ bin/flume-ng agent --conf conf/ --name a1 --conf-file job/group2/flume-netcat-flume.conf
+[xu1an@hadoop102 flume]$ bin/flume-ng agent --conf conf/ --name a1 --conf-file job/group2/flume-netcat-flume.conf
 ```
 
 （6）使用netcat工具向本机的44444端口发送内容
@@ -949,15 +951,15 @@ Flume-1与Flume-2将数据发送给hadoop104上的Flume-3，Flume-3将最终数�
 分发Flume
 
 ```
-[atguigu@hadoop102 module]$ xsync flume
+[xu1an@hadoop102 module]$ xsync flume
 ```
 
 在hadoop102、hadoop103以及hadoop104的/opt/module/flume/job目录下创建一个group3文件夹。
 
 ```
-[atguigu@hadoop102 job]$ mkdir group3
-[atguigu@hadoop103 job]$ mkdir group3
-[atguigu@hadoop104 job]$ mkdir group3
+[xu1an@hadoop102 job]$ mkdir group3
+[xu1an@hadoop103 job]$ mkdir group3
+[xu1an@hadoop104 job]$ mkdir group3
 ```
 
 （2）创建flume1-logger-flume.conf
@@ -967,7 +969,7 @@ Flume-1与Flume-2将数据发送给hadoop104上的Flume-3，Flume-3将最终数�
 在hadoop102上编辑配置文件
 
 ```
-[atguigu@hadoop102 group3]$ vim flume1-logger-flume.conf 
+[xu1an@hadoop102 group3]$ vim flume1-logger-flume.conf 
 ```
 
 添加如下内容
@@ -1005,7 +1007,7 @@ a1.sinks.k1.channel = c1
 在hadoop103上编辑配置文件
 
 ```
-[atguigu@hadoop102 group3]$ vim flume2-netcat-flume.conf
+[xu1an@hadoop102 group3]$ vim flume2-netcat-flume.conf
 ```
 
 添加如下内容
@@ -1042,8 +1044,8 @@ a2.sinks.k1.channel = c1
 
 ```
 在hadoop104上编辑配置文件
-[atguigu@hadoop104 group3]$ touch flume3-flume-logger.conf
-[atguigu@hadoop104 group3]$ vim flume3-flume-logger.conf
+[xu1an@hadoop104 group3]$ touch flume3-flume-logger.conf
+[xu1an@hadoop104 group3]$ vim flume3-flume-logger.conf
 ```
 
 添加如下内容
@@ -1078,23 +1080,23 @@ a3.sinks.k1.channel = c1
 分别开启对应配置文件：flume3-flume-logger.conf，flume2-netcat-flume.conf，flume1-logger-flume.conf。
 
 ```
-[atguigu@hadoop104 flume]$ bin/flume-ng agent --conf conf/ --name a3 --conf-file job/group3/flume3-flume-logger.conf -Dflume.root.logger=INFO,console
+[xu1an@hadoop104 flume]$ bin/flume-ng agent --conf conf/ --name a3 --conf-file job/group3/flume3-flume-logger.conf -Dflume.root.logger=INFO,console
 
-[atguigu@hadoop102 flume]$ bin/flume-ng agent --conf conf/ --name a2 --conf-file job/group3/flume1-logger-flume.conf
+[xu1an@hadoop102 flume]$ bin/flume-ng agent --conf conf/ --name a2 --conf-file job/group3/flume1-logger-flume.conf
 
-[atguigu@hadoop103 flume]$ bin/flume-ng agent --conf conf/ --name a1 --conf-file job/group3/flume2-netcat-flume.conf
+[xu1an@hadoop103 flume]$ bin/flume-ng agent --conf conf/ --name a1 --conf-file job/group3/flume2-netcat-flume.conf
 ```
 
 （6）在hadoop103上向/opt/module目录下的group.log追加内容
 
 ```
-[atguigu@hadoop103 module]$ echo 'hello' > group.log
+[xu1an@hadoop103 module]$ echo 'hello' > group.log
 ```
 
 （7）在hadoop102上向44444端口发送数据
 
 ```
-[atguigu@hadoop102 flume]$ telnet hadoop102 44444
+[xu1an@hadoop102 flume]$ telnet hadoop102 44444
 ```
 
 （8）检查hadoop104上数据
@@ -1130,7 +1132,7 @@ a3.sinks.k1.channel = c1
 （2）定义CustomInterceptor类并实现Interceptor接口。
 
 ```
-package com.atguigu.flume.interceptor;
+package com.xu1an.flume.interceptor;
 
 import org.apache.flume.Context;
 import org.apache.flume.Event;
@@ -1201,7 +1203,7 @@ a1.sources.r1.type = netcat
 a1.sources.r1.bind = localhost
 a1.sources.r1.port = 44444
 a1.sources.r1.interceptors = i1
-a1.sources.r1.interceptors.i1.type = com.atguigu.flume.interceptor.CustomInterceptor$Builder
+a1.sources.r1.interceptors.i1.type = com.xu1an.flume.interceptor.CustomInterceptor$Builder
 a1.sources.r1.selector.type = multiplexing
 a1.sources.r1.selector.header = type
 a1.sources.r1.selector.mapping.letter = c1
@@ -1328,7 +1330,7 @@ process()//获取数据封装成event并写入channel，这个方法将被循环
 （2）编写代码
 
 ```
-package com.atguigu;
+package com.xu1an;
 
 import org.apache.flume.Context;
 import org.apache.flume.EventDeliveryException;
@@ -1404,9 +1406,9 @@ a1.sinks = k1
 a1.channels = c1
 
 # Describe/configure the source
-a1.sources.r1.type = com.atguigu.MySource
+a1.sources.r1.type = com.xu1an.MySource
 a1.sources.r1.delay = 1000
-#a1.sources.r1.field = atguigu
+#a1.sources.r1.field = xu1an
 
 # Describe the sink
 a1.sinks.k1.type = logger
@@ -1424,9 +1426,9 @@ a1.sinks.k1.channel = c1
 （3）开启任务
 
 ```
-[atguigu@hadoop102 flume]$ pwd
+[xu1an@hadoop102 flume]$ pwd
 /opt/module/flume
-[atguigu@hadoop102 flume]$ bin/flume-ng agent -c conf/ -f job/mysource.conf -n a1 -Dflume.root.logger=INFO,console
+[xu1an@hadoop102 flume]$ bin/flume-ng agent -c conf/ -f job/mysource.conf -n a1 -Dflume.root.logger=INFO,console
 ```
 
 （4）结果展示
@@ -1466,7 +1468,7 @@ process()//从Channel读取获取数据（event），这个方法将被循环调
 **3）编码**
 
 ```
-package com.atguigu;
+package com.xu1an;
 
 import org.apache.flume.*;
 import org.apache.flume.conf.Configurable;
@@ -1559,9 +1561,9 @@ a1.sources.r1.bind = localhost
 a1.sources.r1.port = 44444
 
 # Describe the sink
-a1.sinks.k1.type = com.atguigu.MySink
-#a1.sinks.k1.prefix = atguigu:
-a1.sinks.k1.suffix = :atguigu
+a1.sinks.k1.type = com.xu1an.MySink
+#a1.sinks.k1.prefix = xu1an:
+a1.sinks.k1.suffix = :xu1an
 
 # Use a channel which buffers events in memory
 a1.channels.c1.type = memory
@@ -1576,11 +1578,11 @@ a1.sinks.k1.channel = c1
 （3）开启任务
 
 ```
-[atguigu@hadoop102 flume]$ bin/flume-ng agent -c conf/ -f job/mysink.conf -n a1 -Dflume.root.logger=INFO,console
-[atguigu@hadoop102 ~]$ nc localhost 44444
+[xu1an@hadoop102 flume]$ bin/flume-ng agent -c conf/ -f job/mysink.conf -n a1 -Dflume.root.logger=INFO,console
+[xu1an@hadoop102 ~]$ nc localhost 44444
 hello
 OK
-atguigu
+xu1an
 OK
 ```
 
@@ -1613,27 +1615,27 @@ hadoop104:     gmod
 （2）在102 103 104分别安装epel-release
 
 ```
-[atguigu@hadoop102 flume]$ sudo yum -y install epel-release
+[xu1an@hadoop102 flume]$ sudo yum -y install epel-release
 ```
 
 （3）在102 安装
 
 ```
-[atguigu@hadoop102 flume]$ sudo yum -y install ganglia-gmetad 
-[atguigu@hadoop102 flume]$ sudo yum -y install ganglia-web
-[atguigu@hadoop102 flume]$ sudo yum -y install ganglia-gmond
+[xu1an@hadoop102 flume]$ sudo yum -y install ganglia-gmetad 
+[xu1an@hadoop102 flume]$ sudo yum -y install ganglia-web
+[xu1an@hadoop102 flume]$ sudo yum -y install ganglia-gmond
 ```
 
 （4）在103 和 104 安装
 
 ```
-[atguigu@hadoop102 flume]$ sudo yum -y install ganglia-gmond
+[xu1an@hadoop102 flume]$ sudo yum -y install ganglia-gmond
 ```
 
 **2）在102修改配置文件/etc/httpd/conf.d/ganglia.conf**
 
 ```
-[atguigu@hadoop102 flume]$ sudo vim /etc/httpd/conf.d/ganglia.conf
+[xu1an@hadoop102 flume]$ sudo vim /etc/httpd/conf.d/ganglia.conf
 ```
 
 修改为红颜色的配置：
@@ -1656,7 +1658,7 @@ Alias /ganglia /usr/share/ganglia
 **5）在102修改配置文件/etc/ganglia/gmetad.conf**
 
 ```
-[atguigu@hadoop102 flume]$ sudo vim /etc/ganglia/gmetad.conf
+[xu1an@hadoop102 flume]$ sudo vim /etc/ganglia/gmetad.conf
 ```
 
 修改为：
@@ -1668,7 +1670,7 @@ data_source "my cluster" hadoop102
 **6）在102 103 104修改配置文件/etc/ganglia/gmond.conf**
 
 ```
-[atguigu@hadoop102 flume]$ sudo vim /etc/ganglia/gmond.conf 
+[xu1an@hadoop102 flume]$ sudo vim /etc/ganglia/gmond.conf 
 修改为：
 cluster {
   name = "my cluster"
@@ -1704,7 +1706,7 @@ udp_recv_channel {
 **7）在102修改配置文件/etc/selinux/config**
 
 ```
-[atguigu@hadoop102 flume]$ sudo vim /etc/selinux/config
+[xu1an@hadoop102 flume]$ sudo vim /etc/selinux/config
 修改为：
 # This file controls the state of SELinux on the system.
 # SELINUX= can take one of these three values:
@@ -1721,7 +1723,7 @@ SELINUXTYPE=targeted
 尖叫提示：selinux本次生效关闭必须重启，如果此时不想重启，可以临时生效之：
 
 ```
-[atguigu@hadoop102 flume]$ sudo setenforce 0
+[xu1an@hadoop102 flume]$ sudo setenforce 0
 ```
 
 **8）启动ganglia**
@@ -1729,14 +1731,14 @@ SELINUXTYPE=targeted
 （1）在102 103 104 启动
 
 ```
-[atguigu@hadoop102 flume]$ sudo systemctl  start gmond
+[xu1an@hadoop102 flume]$ sudo systemctl  start gmond
 ```
 
 （2）在102 启动
 
 ```
-[atguigu@hadoop102 flume]$ sudo systemctl start httpd
-[atguigu@hadoop102 flume]$ sudo systemctl start gmetad
+[xu1an@hadoop102 flume]$ sudo systemctl start httpd
+[xu1an@hadoop102 flume]$ sudo systemctl start gmetad
 ```
 
 **9）打开网页浏览ganglia页面**
@@ -1746,7 +1748,7 @@ http://hadoop102/ganglia
 尖叫提示：如果完成以上操作依然出现权限不足错误，请修改/var/lib/ganglia目录的权限：
 
 ```
-[atguigu@hadoop102 flume]$ sudo chmod -R 777 /var/lib/ganglia
+[xu1an@hadoop102 flume]$ sudo chmod -R 777 /var/lib/ganglia
 ```
 
 #### 3.8.2 操作Flume测试监控
@@ -1754,7 +1756,7 @@ http://hadoop102/ganglia
 **1）启动Flume任务**
 
 ```
-[atguigu@hadoop102 flume]$ bin/flume-ng agent \
+[xu1an@hadoop102 flume]$ bin/flume-ng agent \
 -c conf/ \
 -n a1 \
 -f datas/netcat-flume-logger.conf \
@@ -1766,7 +1768,7 @@ http://hadoop102/ganglia
 **2）发送数据观察ganglia监测图**
 
 ```
-[atguigu@hadoop102 flume]$ nc localhost 44444
+[xu1an@hadoop102 flume]$ nc localhost 44444
 ```
 
 样式如图：
