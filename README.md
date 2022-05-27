@@ -21,8 +21,8 @@
   - [Hive](./03_Hive/Hive.md)
 - [x] Flume
   - [Flume](./04_Flume/Flume.md)
-- [ ] Kaflka
-  - [Kaflka](./05_Kaflka)
+- [x] Kaflka
+  - [Kaflka](./05_Kaflka/Kaflka.md)
 - [ ] HBase
   - [HBase](./06_HBase)
 - [ ] Scala
@@ -32,6 +32,7 @@
 ### 大数据平台技术（练习）
 
 - [ ] 数仓采集
+  - [电商数仓采集项目]()
 - [ ] 电商数仓
 - [ ] 实时数仓
 
@@ -71,7 +72,7 @@
 
 ---
 
-### 机器学习（推荐系统、用户画像）
+### 机器学习+大数据技术项目（推荐系统、用户画像）
 
 > 欢迎加入...
 
