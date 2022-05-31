@@ -60,9 +60,9 @@ Kafka是一个分布式的基于发布/订阅模式的消息队列（Message Que
 
 **3）Consumer Group** （CG）：消费者组，由多个consumer组成。**消费者组内每个消费者负责消费不同分区的数据，一个分区只能由一个组内消费者消费；消费者组之间互不影响。**所有的消费者都属于某个消费者组，即**消费者组是逻辑上的一个订阅者**。
 
-**4****）Broker** **：**一台kafka服务器就是一个broker。一个集群由多个broker组成。一个broker可以容纳多个topic。
+**4）Broker** **：**一台kafka服务器就是一个broker。一个集群由多个broker组成。一个broker可以容纳多个topic。
 
-**5****）Topic** **：**可以理解为一个队列，**生产者和消费者面向的都是一个topic**；
+**5）Topic** **：**可以理解为一个队列，**生产者和消费者面向的都是一个topic**；
 
 **6）Partition**：为了实现扩展性，一个非常大的topic可以分布到多个broker（即服务器）上，**一个topic可以分为多个partition**，每个partition是一个有序的队列；
 
@@ -71,6 +71,26 @@ Kafka是一个分布式的基于发布/订阅模式的消息队列（Message Que
 **8）leader**：每个分区多个副本的“主”，生产者发送数据的对象，以及消费者消费数据的对象都是leader。
 
 **9）follower**：每个分区多个副本中的“从”，实时从leader中同步数据，保持和leader数据的同步。leader发生故障时，某个follower会成为新的leader。
+
+- **Kafka基础架构**
+
+  1) Kafka集群
+     Kafka集群是由多个Broker组成的。 每个Broker拥有唯一的id.
+     Kafka集群中有多个Topic.每个Topic可有多个分区(partition),每个分区可有多个副本(replication).
+     一个Topic的多个分区可以存在到一个Broker中。 一个分区的多个副本只能在不同的broker存在.
+     一个分区的多个副本由一个leader和多个follower组成.
+     生产者和消费者读写数据面向leader. follower主要同步leader的数据。以及当leader故障后，follower代替leader工作.
+  1) 生产者
+     生成者的功能就是往topic中发布消息.
+  3) 消费者
+     消费者的功能就是从topic中消费消息.
+     消费者消费消息是以消费者组为单位进行的.
+     一个消费者组内的一个消费者可以同时消费一个topic中多个分区的消息. 
+     一个Topic中的一个分区的消息同时只能被一个消费者组中的一个消费者消费.
+  4) Zookeeper
+     Kafka集群的工作需要依赖zookeeper,例如每个broker启动后需要向zookeeper注册. 
+     Broker中大哥(controller)的选举(争抢策略)
+     Kafka 0.9版本之前消费者组的offset维护在zookeeper中. 0.9版本之后维护在kafka内部.
 
 ---
 
@@ -95,26 +115,26 @@ http://kafka.apache.org/downloads.html
 1）解压安装包
 
 ```
-[atguigu@hadoop102 software]$ tar -zxvf kafka_2.11-2.4.1.tgz -C /opt/module/
+[xu1an@hadoop102 software]$ tar -zxvf kafka_2.11-2.4.1.tgz -C /opt/module/
 ```
 
 2）修改解压后的文件名称
 
 ```
-[atguigu@hadoop102 module]$ mv kafka_2.11-2.4.1.tgz kafka
+[xu1an@hadoop102 module]$ mv kafka_2.11-2.4.1.tgz kafka
 ```
 
 3）在/opt/module/kafka目录下创建logs文件夹
 
 ```
-[atguigu@hadoop102 kafka]$ mkdir logs
+[xu1an@hadoop102 kafka]$ mkdir logs
 ```
 
 4）修改配置文件
 
 ```
-[atguigu@hadoop102 kafka]$ cd config/
-[atguigu@hadoop102 config]$ vi server.properties
+[xu1an@hadoop102 kafka]$ cd config/
+[xu1an@hadoop102 config]$ vi server.properties
 ```
 
 输入以下内容：
@@ -134,7 +154,7 @@ socket.send.buffer.bytes=102400
 socket.receive.buffer.bytes=102400
 #请求套接字的缓冲区大小
 socket.request.max.bytes=104857600
-#kafka运行日志存放的路径
+#kafka消息存放的路径
 log.dirs=/opt/module/kafka/logs
 #topic在当前broker上的分区个数
 num.partitions=1
@@ -149,19 +169,19 @@ zookeeper.connect=hadoop102:2181,hadoop103:2181,hadoop104:218
 5）配置环境变量
 
 ```
-[atguigu@hadoop102 module]$ sudo vim /etc/profile.d/my_env.sh
+[xu1an@hadoop102 module]$ sudo vim /etc/profile.d/my_env.sh
 
 #KAFKA_HOME
 export KAFKA_HOME=/opt/module/kafka
 export PATH=$PATH:$KAFKA_HOME/bin
 
-[atguigu@hadoop102 module]$ source /etc/profile
+[xu1an@hadoop102 module]$ source /etc/profile
 ```
 
 6）分发安装包
 
 ```
-[atguigu@hadoop102 module]$ xsync kafka/
+[xu1an@hadoop102 module]$ xsync kafka/
 ```
 
 ​    注意：分发之后记得配置其他机器的环境变量
@@ -175,23 +195,23 @@ export PATH=$PATH:$KAFKA_HOME/bin
 先启动Zookeeper集群，然后启动kafaka
 
 ```
-[atguigu@hadoop102   kafka]$ zk.sh start 
+[xu1an@hadoop102   kafka]$ zk.sh start 
 ```
 
 依次在hadoop102、hadoop103、hadoop104节点上启动kafka
 
 ```
-[atguigu@hadoop102 kafka]$ bin/kafka-server-start.sh -daemon config/server.properties
-[atguigu@hadoop103 kafka]$ bin/kafka-server-start.sh -daemon  config/server.properties
-[atguigu@hadoop104 kafka]$ bin/kafka-server-start.sh -daemon  config/server.properties
+[xu1an@hadoop102 kafka]$ bin/kafka-server-start.sh -daemon config/server.properties
+[xu1an@hadoop103 kafka]$ bin/kafka-server-start.sh -daemon  config/server.properties
+[xu1an@hadoop104 kafka]$ bin/kafka-server-start.sh -daemon  config/server.properties
 ```
 
 9）关闭集群
 
 ```
-[atguigu@hadoop102 kafka]$ bin/kafka-server-stop.sh stop
-[atguigu@hadoop103 kafka]$ bin/kafka-server-stop.sh stop
-[atguigu@hadoop104 kafka]$ bin/kafka-server-stop.sh stop
+[xu1an@hadoop102 kafka]$ bin/kafka-server-stop.sh stop
+[xu1an@hadoop103 kafka]$ bin/kafka-server-stop.sh stop
+[xu1an@hadoop104 kafka]$ bin/kafka-server-stop.sh stop
 ```
 
 10）kafka群起脚本
@@ -230,13 +250,13 @@ done
 1）查看当前服务器中的所有topic
 
 ```
-[atguigu@hadoop102 kafka]$ bin/kafka-topics.sh --zookeeper hadoop102:2181 --list
+[xu1an@hadoop102 kafka]$ bin/kafka-topics.sh --zookeeper hadoop102:2181 --list
 ```
 
 2）创建topic
 
 ```
-[atguigu@hadoop102 kafka]$ bin/kafka-topics.sh --zookeeper hadoop102:2181 --create --replication-factor 3 --partitions 1 --topic first
+[xu1an@hadoop102 kafka]$ bin/kafka-topics.sh --zookeeper hadoop102:2181 --create --replication-factor 3 --partitions 1 --topic first
 ```
 
 选项说明：
@@ -250,24 +270,24 @@ done
 3）删除topic
 
 ```
-[atguigu@hadoop102 kafka]$ bin/kafka-topics.sh --zookeeper hadoop102:2181 --delete --topic first
+[xu1an@hadoop102 kafka]$ bin/kafka-topics.sh --zookeeper hadoop102:2181 --delete --topic first
 ```
 
 4）发送消息
 
 ```
-[atguigu@hadoop102 kafka]$ bin/kafka-console-producer.sh --broker-list hadoop102:9092 --topic first
+[xu1an@hadoop102 kafka]$ bin/kafka-console-producer.sh --broker-list hadoop102:9092 --topic first
 >hello world
->atguigu  atguigu
+>xu1an  xu1an
 ```
 
 5）消费消息
 
 ```
-[atguigu@hadoop102 kafka]$ bin/kafka-console-consumer.sh \
+[xu1an@hadoop102 kafka]$ bin/kafka-console-consumer.sh \
 --bootstrap-server hadoop102:9092 --topic first
 
-[atguigu@hadoop102 kafka]$ bin/kafka-console-consumer.sh \
+[xu1an@hadoop102 kafka]$ bin/kafka-console-consumer.sh \
 --bootstrap-server hadoop102:9092 --from-beginning --topic first
 ```
 
@@ -276,15 +296,50 @@ done
 6）查看某个Topic的详情
 
 ```
-[atguigu@hadoop102 kafka]$ bin/kafka-topics.sh --zookeeper hadoop102:2181 --describe –
+[xu1an@hadoop102 kafka]$ bin/kafka-topics.sh --zookeeper hadoop102:2181 --describe –
 -topic first
 ```
 
-7）修改分区数
+7）修改分区数（只能改大）
 
 ```
-[atguigu@hadoop102 kafka]$ bin/kafka-topics.sh --zookeeper hadoop102:2181 --alter –-
+[xu1an@hadoop102 kafka]$ bin/kafka-topics.sh --zookeeper hadoop102:2181 --alter –-
 topic first --partitions 6
+```
+
+kafka操作合集
+
+```
+  1) 查看topic 列表
+     kafka-topics.sh  --list --bootstrap-server hadoop102:9092
+  2) 创建topic
+     kafka-topics.sh --create --bootstrap-server hadoop102:9092 --topic first
+
+     kafka-topics.sh --create --bootstrap-server hadoop102:9092 --topic second --partitions 2 --replication-factor 3
+  3) 查看Topic详情
+     kafka-topics.sh --describe --bootstrap-server hadoop102:9092 --topic first 
+
+  4) 修改Topic的分区数(只能改大)
+     kafka-topics.sh --describe --bootstrap-server hadoop102:9092 --topic first
+
+  5) 删除Topic
+     kafka-topics.sh --delete --bootstrap-server hadoop102:9092 --topic first    
+  
+  6) 生产者
+     kafka-console-producer.sh  --broker-list hadoop102:9092 --topic first   
+
+  7) 消费者消费数据offset重置问题:
+     新启动的消费者组中的消费者为何消费不到topic中的数据???
+
+  8) 消费者
+	  kafka-console-consumer.sh --bootstrap-server hadoop102:9092 --topic first
+
+      kafka-console-consumer.sh --bootstrap-server hadoop102:9092 --topic first --from-beginning 
+
+  9) 消费者组
+     kafka-console-consumer.sh --bootstrap-server hadoop102:9092 --topic first --consumer.config /opt/module/kafka_2.11-2.4.1/config/consumer.properties     
+
+     kafka-console-consumer.sh --bootstrap-server hadoop102:9092 --topic first --group aa          
 ```
 
 ---
@@ -425,9 +480,9 @@ leader发生故障之后，会从ISR中选出一个新的leader，之后，为�
 
 consumer采用pull（拉）模式从broker中读取数据。
 
-push（推）模式很难适应消费速率不同的消费者，因为消息发送速率是由broker决定的。它的目标是尽可能以最快速度传递消息，但是这样很容易造成consumer来不及处理消息，典型的表现就是拒绝服务以及网络拥塞。而pull模式则可以根据consumer的消费能力以适当的速率消费消息。
+**push（推）**模式很难适应消费速率不同的消费者，因为消息发送速率是由broker决定的。它的目标是尽可能以最快速度传递消息，但是这样很容易造成consumer来不及处理消息，典型的表现就是拒绝服务以及网络拥塞。而pull模式则可以根据consumer的消费能力以适当的速率消费消息。
 
-pull模式不足之处是，如果kafka没有数据，消费者可能会陷入循环中，一直返回空数据。针对这一点，Kafka的消费者在消费数据时会传入一个时长参数timeout，如果当前没有数据可供消费，consumer会等待一段时间之后再返回，这段时长即为timeout。
+**pull模式不足之处是**，如果kafka没有数据，消费者可能会陷入循环中，一直返回空数据。针对这一点，Kafka的消费者在消费数据时会传入一个时长参数timeout，如果当前没有数据可供消费，consumer会等待一段时间之后再返回，这段时长即为timeout。
 
 #### 3.3.2 分区分配策略
 
@@ -437,13 +492,13 @@ Kafka有三种分配策略，RoundRobin，Range , Sticky。
 
 **1）RoundRobin**
 
-![](E:\learning\04_java\01_笔记\BigData\05_Kaflka\picture\分区分配策略之RoundRobin.png)
+![](.\picture\分区分配策略之RoundRobin.png)
 
 **2）Range**
 
 ![](E:\learning\04_java\01_笔记\BigData\05_Kaflka\picture\分区分配策略之Range.png)
 
-3.3.3 offset的维护
+#### 3.3.3 offset的维护
 
 由于consumer在消费过程中可能会出现断电宕机等故障，consumer恢复后，需要从故障前的位置的继续消费，所以consumer需要实时记录自己消费到了哪个offset，以便故障恢复后继续消费。
 
@@ -463,15 +518,15 @@ exclude.internal.topics=false
 （2）创建一个topic
 
 ```
-bin/kafka-topics.sh --create --topic atguigu --zookeeper hadoop102:2181 --partitions 2
+bin/kafka-topics.sh --create --topic xu1an --zookeeper hadoop102:2181 --partitions 2
  --replication-factor 2
 ```
 
-（3）启动生产者和消费者，分别往atguigu生产数据和消费数据
+（3）启动生产者和消费者，分别往xu1an生产数据和消费数据
 
 ```
-bin/kafka-console-producer.sh --topic atguigu --broker-list  hadoop102:9092
-bin/kafka-console-consumer.sh --consumer.config config/consumer.properties --topic atguigu --bootstrap-server hadoop102:9092
+bin/kafka-console-producer.sh --topic xu1an --broker-list  hadoop102:9092
+bin/kafka-console-consumer.sh --consumer.config config/consumer.properties --topic xu1an --bootstrap-server hadoop102:9092
 ```
 
 （4）消费offset
@@ -483,9 +538,9 @@ bin/kafka-console-consumer.sh --topic __consumer_offsets --bootstrap-server  had
 （5）消费到的数据
 
 ```
-[test-consumer-group,atguigu,1]::OffsetAndMetadata(offset=2, leaderEpoch=Optional[0],
+[test-consumer-group,xu1an,1]::OffsetAndMetadata(offset=2, leaderEpoch=Optional[0],
  metadata=, commitTimestamp=1591935656078, expireTimestamp=None)
-[test-consumer-group,atguigu,0]::OffsetAndMetadata(offset=1, leaderEpoch=Optional[0], metadata=, commitTimestamp=1591935656078, expireTimestamp=None)
+[test-consumer-group,xu1an,0]::OffsetAndMetadata(offset=1, leaderEpoch=Optional[0], metadata=, commitTimestamp=1591935656078, expireTimestamp=None)
 ```
 
 #### 3.3.4 消费者组案例
@@ -497,23 +552,23 @@ bin/kafka-console-consumer.sh --topic __consumer_offsets --bootstrap-server  had
 （1）在hadoop102、hadoop103上修改/opt/module/kafka/config/consumer.properties配置文件中的group.id属性为任意组名。
 
 ```
-[atguigu@hadoop103 config]$ vi consumer.properties
+[xu1an@hadoop103 config]$ vi consumer.properties
 group.id=mygroup
 ```
 
 （2）在hadoop104上启动生产者
 
 ```
-[atguigu@hadoop104 kafka]$ bin/kafka-console-producer.sh \
+[xu1an@hadoop104 kafka]$ bin/kafka-console-producer.sh \
 --broker-list hadoop102:9092 --topic first
 ```
 
  （3）在hadoop102、hadoop103上分别启动消费者
 
 ```
-[atguigu@hadoop102 kafka]$ bin/kafka-console-consumer.sh \
+[xu1an@hadoop102 kafka]$ bin/kafka-console-consumer.sh \
 bootstrap-server hadoop102:9092 --topic first --consumer.config config/consumer.properties
-[atguigu@hadoop103 kafka]$ bin/kafka-console-consumer.sh --bootstrap-server hadoop102:9092 --topic first --consumer.config config/consumer.properties
+[xu1an@hadoop103 kafka]$ bin/kafka-console-consumer.sh --bootstrap-server hadoop102:9092 --topic first --consumer.config config/consumer.properties
 ```
 
  （4）查看hadoop102和hadoop103的消费者的消费情况。
@@ -569,3 +624,1016 @@ Kafka从0.11版本开始引入了事务支持。事务可以保证Kafka在Exactl
 上述事务机制主要是从Producer方面考虑，对于Consumer而言，事务的保证就会相对较弱，尤其时无法保证Commit的信息被精确消费。这是由于Consumer可以通过offset访问任意信息，而且不同的Segment File生命周期不同，同一事务的消息可能会出现重启后被删除的情况。
 
 如果想完成Consumer端的精准一次性消费，那么需要kafka消费端将消费过程和提交offset过程做原子绑定。此时我们需要将kafka的offset保存到支持事务的自定义介质（比如mysql）。这部分知识会在后续项目部分涉及。
+
+---
+
+## 4 Kafka API
+
+### 4.1 Producer API
+
+#### 4.1.1 消息发送流程
+
+Kafka的Producer发送消息采用的是**异步发送**的方式。在消息发送的过程中，涉及到了**两个线程——main线程和Sender线程**，以及**一个线程共享变量——RecordAccumulator**。main线程将消息发送给RecordAccumulator，Sender线程不断从RecordAccumulator中拉取消息发送到Kafka broker。
+
+![](E:\learning\04_java\01_笔记\BigData\05_Kaflka\picture\KafkaProducer 发送消息流程.png)
+
+**相关参数：**
+
+**batch.size：**只有数据积累到batch.size之后，sender才会发送数据。
+
+**linger.ms：**如果数据迟迟未达到batch.size，sender等待linger.time之后就会发送数据。
+
+#### 4.1.2 异步发送API
+
+**1）导入依赖**
+
+```xml
+<dependencies>
+        <dependency>
+            <groupId>org.apache.kafka</groupId>
+            <artifactId>kafka-clients</artifactId>
+            <version>2.4.1</version>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.logging.log4j</groupId>
+            <artifactId>log4j-slf4j-impl</artifactId>
+            <version>2.12.0</version>
+        </dependency>
+</dependencies>
+```
+
+**2）添加log4j配置文件**
+
+```xml
+<?xml version="1.0" encoding="UTF-8"?>
+<Configuration status="error" strict="true" name="XMLConfig">
+    <Appenders>
+        <!-- 类型名为Console，名称为必须属性 -->
+        <Appender type="Console" name="STDOUT">
+            <!-- 布局为PatternLayout的方式，
+            输出样式为[INFO] [2018-01-22 17:34:01][org.test.Console]I'm here -->
+            <Layout type="PatternLayout"
+                    pattern="[%p] [%d{yyyy-MM-dd HH:mm:ss}][%c{10}]%m%n" />
+        </Appender>
+
+    </Appenders>
+
+    <Loggers>
+        <!-- 可加性为false -->
+        <Logger name="test" level="info" additivity="false">
+            <AppenderRef ref="STDOUT" />
+        </Logger>
+
+        <!-- root loggerConfig设置 -->
+        <Root level="info">
+            <AppenderRef ref="STDOUT" />
+        </Root>
+    </Loggers>
+
+</Configuration>
+```
+
+**3）编写代码**
+
+需要用到的类：
+
+**KafkaProducer**：需要创建一个生产者对象，用来发送数据
+
+**ProducerConfig**：获取所需的一系列配置参数
+
+**ProducerRecord**：每条数据都要封装成一个ProducerRecord对象
+
+（1）不带回调函数的API
+
+```
+package com.xu1an.kafka;
+
+import org.apache.kafka.clients.producer.*;
+
+import java.util.Properties;
+import java.util.concurrent.ExecutionException;
+
+public class CustomProducer {
+
+    public static void main(String[] args) throws ExecutionException, InterruptedException {
+        Properties props = new Properties();
+
+        //kafka集群，broker-list
+        props.put("bootstrap.servers", "hadoop102:9092");
+
+        props.put("acks", "all");
+
+        //重试次数
+        props.put("retries", 1); 
+
+        //批次大小
+        props.put("batch.size", 16384); 
+
+        //等待时间
+        props.put("linger.ms", 1); 
+
+        //RecordAccumulator缓冲区大小
+        props.put("buffer.memory", 33554432);
+
+        props.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+        props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+
+        Producer<String, String> producer = new KafkaProducer<>(props);
+
+        for (int i = 0; i < 100; i++) {
+            producer.send(new ProducerRecord<String, String>("first", Integer.toString(i), Integer.toString(i)));
+        }
+
+        producer.close();
+    }
+}
+```
+
+（2）**带回调函数的API**
+
+回调函数会在producer收到ack时调用，为异步调用，该方法有两个参数，分别是RecordMetadata和Exception，如果Exception为null，说明消息发送成功，如果Exception不为null，说明消息发送失败。
+注意：消息发送失败会自动重试，不需要我们在回调函数中手动重试。
+
+```
+package com.xu1an.kafka;
+
+import org.apache.kafka.clients.producer.*;
+
+import java.util.Properties;
+import java.util.concurrent.ExecutionException;
+
+public class CustomProducer {
+
+public static void main(String[] args) throws ExecutionException, InterruptedException {
+
+        Properties props = new Properties();
+
+        props.put("bootstrap.servers", "hadoop102:9092");//kafka集群，broker-list
+
+        props.put("acks", "all");
+
+        props.put("retries", 1);//重试次数
+
+        props.put("batch.size", 16384);//批次大小
+
+        props.put("linger.ms", 1);//等待时间
+
+        props.put("buffer.memory", 33554432);//RecordAccumulator缓冲区大小
+
+        props.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+        props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+
+        Producer<String, String> producer = new KafkaProducer<>(props);
+
+        for (int i = 0; i < 100; i++) {
+            producer.send(new ProducerRecord<String, String>("first", Integer.toString(i), Integer.toString(i)), new Callback() {
+
+                //回调函数，该方法会在Producer收到ack时调用，为异步调用
+                @Override
+                public void onCompletion(RecordMetadata metadata, Exception exception) {
+                    if (exception == null) {
+                        System.out.println("success->" + metadata.offset());
+                    } else {
+                        exception.printStackTrace();
+                    }
+                }
+            });
+        }
+        producer.close();
+    }
+}
+```
+
+#### 4.1.3 分区器
+
+**1）** 默认的分区器 DefaultPartitioner
+
+**2）** 自定义分区器 
+
+```
+public class MyPartitioner implements Partitioner {
+    /**
+     * 计算某条消息要发送到哪个分区
+     * @param topic 主题
+     * @param key   消息的key
+     * @param keyBytes 消息的key序列化后的字节数组
+     * @param value 消息的value
+     * @param valueBytes   消息的value序列化后的字节数组
+     * @param cluster
+     * @return
+     *
+     * 需求: 以xu1an主题为例，2个分区
+     *       消息的 value包含"xu1an"的 进入0号分区
+     *       其他的消息进入1号分区
+     */
+    @Override
+    public int partition(String topic, Object key, byte[] keyBytes, Object value, byte[] valueBytes, Cluster cluster) {
+        String msgValue = value.toString();
+        int partition ;
+        if(msgValue.contains("xu1an")){
+            partition = 0;
+        }else{
+            partition = 1;
+        }
+        return partition;
+    }
+
+    /**
+     * 收尾工作
+     */
+    @Override
+    public void close() {
+
+    }
+
+    /**
+     * 读取配置的
+     * @param configs
+     */
+    @Override
+    public void configure(Map<String, ?> configs) {
+
+    }
+}
+```
+
+#### 4.1.4 同步发送API
+
+同步发送的意思就是，一条消息发送之后，会阻塞当前线程，直至返回ack。
+
+由于send方法返回的是一个Future对象，根据Futrue对象的特点，我们也可以实现同步发送的效果，只需在调用Future对象的get方发即可。
+
+```
+package com.xu1an.kafka;
+
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.Producer;
+import org.apache.kafka.clients.producer.ProducerRecord;
+
+import java.util.Properties;
+import java.util.concurrent.ExecutionException;
+
+public class CustomProducer {
+
+public static void main(String[] args) throws ExecutionException, InterruptedException {
+
+        Properties props = new Properties();
+
+        props.put("bootstrap.servers", "hadoop102:9092");//kafka集群，broker-list
+
+        props.put("acks", "all");
+
+        props.put("retries", 1);//重试次数
+
+        props.put("batch.size", 16384);//批次大小
+
+        props.put("linger.ms", 1);//等待时间
+
+        props.put("buffer.memory", 33554432);//RecordAccumulator缓冲区大小
+
+        props.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+        props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+
+        Producer<String, String> producer = new KafkaProducer<>(props);
+        for (int i = 0; i < 100; i++) {
+            producer.send(new ProducerRecord<String, String>("first", Integer.toString(i), Integer.toString(i))).get();
+        }
+        producer.close();
+    }
+}
+```
+
+### 4.2 Consumer API
+
+Consumer消费数据时的可靠性是很容易保证的，因为数据在Kafka中是持久化的，故不用担心数据丢失问题。
+
+由于consumer在消费过程中可能会出现断电宕机等故障，consumer恢复后，需要从故障前的位置的继续消费，所以consumer需要实时记录自己消费到了哪个offset，以便故障恢复后继续消费。
+
+所以offset的维护是Consumer消费数据是必须考虑的问题。
+
+#### 4.2.1 自动提交offset
+
+**1）编写代码**
+
+需要用到的类：
+
+**KafkaConsumer**：需要创建一个消费者对象，用来消费数据
+
+**ConsumerConfig**：获取所需的一系列配置参数
+
+**ConsuemrRecord**：每条数据都要封装成一个ConsumerRecord对象
+
+为了使我们能够专注于自己的业务逻辑，Kafka提供了自动提交offset的功能。 
+
+自动提交offset的相关参数：
+
+**enable.auto.commit**：是否开启自动提交offset功能
+
+**auto.commit.interval.ms**：自动提交offset的时间间隔
+
+**2）消费者自动提交offset**
+
+```
+package com.xu1an.kafka;
+
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
+
+import java.util.Arrays;
+import java.util.Properties;
+
+public class CustomConsumer {
+
+public static void main(String[] args) {
+
+        Properties props = new Properties();
+
+        props.put("bootstrap.servers", "hadoop102:9092");
+
+        props.put("group.id", "test");
+
+        props.put("enable.auto.commit", "true");
+
+        props.put("auto.commit.interval.ms", "1000");
+
+        props.put("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
+        props.put("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
+
+        KafkaConsumer<String, String> consumer = new KafkaConsumer<>(props);
+
+        consumer.subscribe(Arrays.asList("first"));
+
+        while (true) {
+
+            ConsumerRecords<String, String> records = consumer.poll(100);
+
+            for (ConsumerRecord<String, String> record : records)
+
+                System.out.printf("offset = %d, key = %s, value = %s%n", record.offset(), record.key(), record.value());
+        }
+    }
+}
+```
+
+#### 4.2.2 重置Offset
+
+auto.offset.rest = earliest | latest | none |
+
+#### 4.2.3 手动提交offset
+
+虽然自动提交offset十分简介便利，但由于其是基于时间提交的，开发人员难以把握offset提交的时机。因此Kafka还提供了手动提交offset的API。
+
+手动提交offset的方法有两种：分别是commitSync（同步提交）和commitAsync（异步提交）。两者的相同点是，都会将**本次poll的一批数据最高的偏移量提交**；不同点是，commitSync阻塞当前线程，一直到提交成功，并且会自动失败重试（由不可控因素导致，也会出现提交失败）；而commitAsync则没有失败重试机制，故有可能提交失败。
+
+**1）同步提交offset**
+
+由于同步提交offset有失败重试机制，故更加可靠，以下为同步提交offset的示例。
+
+```
+package com.xu1an.kafka.consumer;
+
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
+
+import java.util.Arrays;
+import java.util.Properties;
+
+public class CustomComsumer {
+
+    public static void main(String[] args) {
+
+        Properties props = new Properties();
+
+//Kafka集群
+        props.put("bootstrap.servers", "hadoop102:9092"); 
+
+//消费者组，只要group.id相同，就属于同一个消费者组
+        props.put("group.id", "test"); 
+
+        props.put("enable.auto.commit", "false");//关闭自动提交offset
+
+        props.put("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
+        props.put("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
+
+        KafkaConsumer<String, String> consumer = new KafkaConsumer<>(props);
+
+        consumer.subscribe(Arrays.asList("first"));//消费者订阅主题
+
+        while (true) {
+
+//消费者拉取数据
+            ConsumerRecords<String, String> records = consumer.poll(100); 
+
+            for (ConsumerRecord<String, String> record : records) {
+
+                System.out.printf("offset = %d, key = %s, value = %s%n", record.offset(), record.key(), record.value());
+
+            }
+
+//同步提交，当前线程会阻塞直到offset提交成功
+            consumer.commitSync();
+        }
+    }
+}
+```
+
+**2）异步提交offset**
+
+虽然同步提交offset更可靠一些，但是由于其会阻塞当前线程，直到提交成功。因此吞吐量会收到很大的影响。因此更多的情况下，会选用异步提交offset的方式。
+
+以下为异步提交offset的示例：
+
+```
+package com.xu1an.kafka.consumer;
+
+import org.apache.kafka.clients.consumer.*;
+import org.apache.kafka.common.TopicPartition;
+
+import java.util.Arrays;
+import java.util.Map;
+import java.util.Properties;
+
+
+public class CustomConsumer {
+
+    public static void main(String[] args) {
+
+        Properties props = new Properties();
+
+        //Kafka集群
+        props.put("bootstrap.servers", "hadoop102:9092"); 
+
+        //消费者组，只要group.id相同，就属于同一个消费者组
+        props.put("group.id", "test"); 
+
+        //关闭自动提交offset
+        props.put("enable.auto.commit", "false");
+
+        props.put("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
+        props.put("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
+
+        KafkaConsumer<String, String> consumer = new KafkaConsumer<>(props);
+        consumer.subscribe(Arrays.asList("first"));//消费者订阅主题
+
+        while (true) {
+            ConsumerRecords<String, String> records = consumer.poll(100);//消费者拉取数据
+            for (ConsumerRecord<String, String> record : records) {
+                System.out.printf("offset = %d, key = %s, value = %s%n", record.offset(), record.key(), record.value());
+            }
+
+//异步提交
+            consumer.commitAsync(new OffsetCommitCallback() {
+                @Override
+                public void onComplete(Map<TopicPartition, OffsetAndMetadata> offsets, Exception exception) {
+                    if (exception != null) {
+                        System.err.println("Commit failed for" + offsets);
+                    }
+                }
+            }); 
+        }
+    }
+}
+```
+
+**3）** **数据漏消费和重复消费分析**
+
+无论是同步提交还是异步提交offset，都有可能会造成数据的漏消费或者重复消费。先提交offset后消费，有可能造成数据的漏消费；而先消费后提交offset，有可能会造成数据的重复消费。
+
+### 4.3 自定义Interceptor
+
+#### 4.3.1 拦截器原理
+
+Producer拦截器(interceptor)是在Kafka 0.10版本被引入的，主要用于实现clients端的定制化控制逻辑。
+
+对于producer而言，interceptor使得用户在消息发送前以及producer回调逻辑前有机会对消息做一些定制化需求，比如修改消息等。同时，producer允许用户指定多个interceptor按序作用于同一条消息从而形成一个拦截链(interceptor chain)。Intercetpor的实现接口是org.apache.kafka.clients.producer.ProducerInterceptor，其定义的方法包括：
+
+（1）configure(configs)
+
+获取配置信息和初始化数据时调用。
+
+（2）onSend(ProducerRecord)：
+
+该方法封装进KafkaProducer.send方法中，即它运行在用户主线程中。Producer确保在消息被序列化以及计算分区前调用该方法。用户可以在该方法中对消息做任何操作，但最好保证不要修改消息所属的topic和分区，否则会影响目标分区的计算。
+
+（3）onAcknowledgement(RecordMetadata, Exception)：
+
+该方法会在消息从RecordAccumulator成功发送到Kafka Broker之后，或者在发送过程中失败时调用。并且通常都是在producer回调逻辑触发之前。onAcknowledgement运行在producer的IO线程中，因此不要在该方法中放入很重的逻辑，否则会拖慢producer的消息发送效率。
+
+（4）close：
+
+关闭interceptor，主要用于执行一些资源清理工作
+
+如前所述，interceptor可能被运行在多个线程中，因此在具体实现时用户需要自行确保线程安全。另外倘若指定了多个interceptor，则producer将按照指定顺序调用它们，并仅仅是捕获每个interceptor可能抛出的异常记录到错误日志中而非在向上传递。这在使用过程中要特别留意。
+
+#### 4.3.2 拦截器案例
+
+1）需求：
+
+实现一个简单的双interceptor组成的拦截链。第一个interceptor会在消息发送前将时间戳信息加到消息value的最前部；第二个interceptor会在消息发送后更新成功发送消息数或失败发送消息数。
+
+2）案例实操
+
+![](E:\learning\04_java\01_笔记\BigData\05_Kaflka\picture\Kafka拦截器.png)
+
+（1）增加时间戳拦截器
+
+```
+package com.xu1an.kafka.interceptor;
+import java.util.Map;
+import org.apache.kafka.clients.producer.ProducerInterceptor;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.clients.producer.RecordMetadata;
+
+public class TimeInterceptor implements ProducerInterceptor<String, String> {
+
+	@Override
+	public void configure(Map<String, ?> configs) {
+
+	}
+
+	@Override
+	public ProducerRecord<String, String> onSend(ProducerRecord<String, String> record) {
+
+		// 创建一个新的record，把时间戳写入消息体的最前部
+		return new ProducerRecord(record.topic(), record.partition(), record.timestamp(), record.key(),
+				System.currentTimeMillis() + "," + record.value().toString());
+	}
+
+	@Override
+	public void onAcknowledgement(RecordMetadata metadata, Exception exception) {
+
+	}
+
+	@Override
+	public void close() {
+
+	}
+}
+```
+
+（2）统计发送消息成功和发送失败消息数，并在producer关闭时打印这两个计数器
+
+```
+package com.xu1an.kafka.interceptor;
+import java.util.Map;
+import org.apache.kafka.clients.producer.ProducerInterceptor;
+import org.apache.kafka.clients.producer.ProducerRecord;
+import org.apache.kafka.clients.producer.RecordMetadata;
+
+public class CounterInterceptor implements ProducerInterceptor<String, String>{
+    private int errorCounter = 0;
+    private int successCounter = 0;
+
+	@Override
+	public void configure(Map<String, ?> configs) {
+		
+	}
+
+	@Override
+	public ProducerRecord<String, String> onSend(ProducerRecord<String, String> record) {
+		 return record;
+	}
+
+	@Override
+	public void onAcknowledgement(RecordMetadata metadata, Exception exception) {
+		// 统计成功和失败的次数
+        if (exception == null) {
+            successCounter++;
+        } else {
+            errorCounter++;
+        }
+	}
+
+	@Override
+	public void close() {
+        // 保存结果
+        System.out.println("Successful sent: " + successCounter);
+        System.out.println("Failed sent: " + errorCounter);
+	}
+}
+```
+
+（3）producer主程序
+
+```
+package com.xu1an.kafka.interceptor;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Properties;
+import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.Producer;
+import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.clients.producer.ProducerRecord;
+
+public class InterceptorProducer {
+
+	public static void main(String[] args) throws Exception {
+		// 1 设置配置信息
+		Properties props = new Properties();
+		props.put("bootstrap.servers", "hadoop102:9092");
+		props.put("acks", "all");
+		props.put("retries", 3);
+		props.put("batch.size", 16384);
+		props.put("linger.ms", 1);
+		props.put("buffer.memory", 33554432);
+		props.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+		props.put("value.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+		
+		// 2 构建拦截链
+		List<String> interceptors = new ArrayList<>();
+		interceptors.add("com.xu1an.kafka.interceptor.TimeInterceptor"); 	interceptors.add("com.xu1an.kafka.interceptor.CounterInterceptor"); 
+		props.put(ProducerConfig.INTERCEPTOR_CLASSES_CONFIG, interceptors);
+		 
+		String topic = "first";
+		Producer<String, String> producer = new KafkaProducer<>(props);
+		
+		// 3 发送消息
+		for (int i = 0; i < 10; i++) {
+			
+		    ProducerRecord<String, String> record = new ProducerRecord<>(topic, "message" + i);
+		    producer.send(record);
+		}
+		 
+		// 4 一定要关闭producer，这样才会调用interceptor的close方法
+		producer.close();
+	}
+}
+```
+
+3）测试
+
+（1）在kafka上启动消费者，然后运行客户端java程序。
+
+```
+[xu1an@hadoop102 kafka]$ bin/kafka-console-consumer.sh \
+--bootstrap-server hadoop102:9092 --from-beginning --topic first
+
+1501904047034,message0
+1501904047225,message1
+1501904047230,message2
+1501904047234,message3
+1501904047236,message4
+1501904047240,message5
+1501904047243,message6
+1501904047246,message7
+1501904047249,message8
+1501904047252,message9
+```
+
+---
+
+## 5 Kafka监控
+
+### 5.1 Kafka Eagle
+
+**1）修改kafka启动命令**
+
+修改kafka-server-start.sh命令中
+
+```
+if [ "x$KAFKA_HEAP_OPTS" = "x" ]; then
+    export KAFKA_HEAP_OPTS="-Xmx1G -Xms1G"
+fi
+```
+
+为
+
+```
+if [ "x$KAFKA_HEAP_OPTS" = "x" ]; then
+    export KAFKA_HEAP_OPTS="-server -Xms2G -Xmx2G -XX:PermSize=128m -XX:+UseG1GC -XX:MaxGCPauseMillis=200 -XX:ParallelGCThreads=8 -XX:ConcGCThreads=5 -XX:InitiatingHeapOccupancyPercent=70"
+    export JMX_PORT="9999"
+    #export KAFKA_HEAP_OPTS="-Xmx1G -Xms1G"
+fi
+```
+
+注意：修改之后在启动Kafka之前要分发之其他节点
+
+**2）上传压缩包kafka-eagle-bin-1.4.5.tar.gz到集群/opt/software目录**
+
+**3）解压到本地**
+
+```
+[xu1an@hadoop102 software]$ tar -zxvf kafka-eagle-bin-1.4.5.tar.gz
+```
+
+**4）进入刚才解压的目录**
+
+```
+[xu1an@hadoop102 kafka-eagle-bin-1.4.5]$ ll
+总用量 82932
+-rw-rw-r--. 1 xu1an xu1an 84920710 8月  13 23:00 kafka-eagle-web-1.4.5-bin.tar.gz
+```
+
+**5）将kafka-eagle-web-1.3.7-bin.tar.gz解压至/opt/module**
+
+```
+[xu1an@hadoop102 kafka-eagle-bin-1.4.5]$ tar -zxvf kafka-eagle-web-1.4.5-bin.tar.gz -C /opt/module/
+```
+
+**6）修改名称**
+
+```
+[xu1an@hadoop102 module]$ mv kafka-eagle-web-1.4.5/ eagle
+```
+
+**7）给启动文件执行权限**
+
+```
+[xu1an@hadoop102 eagle]$ cd bin/
+[xu1an@hadoop102 bin]$ ll
+总用量 12
+-rw-r--r--. 1 xu1an xu1an 1848 8月  22 2017 ke.bat
+-rw-r--r--. 1 xu1an xu1an 7190 7月  30 20:12 ke.sh
+[xu1an@hadoop102 bin]$ chmod 777 ke.sh
+```
+
+**8）修改配置文件 conf/system-config.properties**
+
+```
+######################################
+# multi zookeeper&kafka cluster list
+######################################
+kafka.eagle.zk.cluster.alias=cluster1
+cluster1.zk.list=hadoop102:2181,hadoop103:2181,hadoop104:2181
+
+######################################
+# kafka offset storage
+######################################
+cluster1.kafka.eagle.offset.storage=kafka
+
+######################################
+# enable kafka metrics
+######################################
+kafka.eagle.metrics.charts=true
+kafka.eagle.sql.fix.error=false
+
+######################################
+# kafka jdbc driver address
+######################################
+kafka.eagle.driver=com.mysql.jdbc.Driver
+kafka.eagle.url=jdbc:mysql://hadoop102:3306/ke?useUnicode=true&characterEncoding=UTF-8&zeroDateTimeBehavior=convertToNull
+kafka.eagle.username=root
+kafka.eagle.password=123456
+```
+
+**9）添加环境变量**
+
+```
+export KE_HOME=/opt/module/eagle
+export PATH=$PATH:$KE_HOME/bin
+```
+
+注意：source /etc/profile
+
+**10）启动**
+
+```
+ [xu1an@hadoop102 eagle]$ bin/ke.sh start
+... ...
+... ...
+*******************************************************************
+* Kafka Eagle Service has started success.
+* Welcome, Now you can visit 'http://192.168.202.102:8048/ke'
+* Account:admin ,Password:123456
+*******************************************************************
+* <Usage> ke.sh [start|status|stop|restart|stats] </Usage>
+* <Usage> https://www.kafka-eagle.org/ </Usage>
+*******************************************************************
+[xu1an@hadoop102 eagle]$
+```
+
+注意：启动之前需要先启动ZK以及KAFKA
+
+**11）登录页面查看监控数据**
+
+http://192.168.202.102:8048/ke
+
+---
+
+## 6 Flume对接Kafka
+
+## 6.1 简单实现
+
+**1）配置flume**
+
+```
+# define
+a1.sources = r1
+a1.sinks = k1
+a1.channels = c1
+
+# source
+a1.sources.r1.type = exec
+a1.sources.r1.command = tail -F  /opt/module/data/flume.log
+
+# sink
+a1.sinks.k1.type = org.apache.flume.sink.kafka.KafkaSink
+a1.sinks.k1.kafka.bootstrap.servers = hadoop102:9092,hadoop103:9092,hadoop104:9092
+a1.sinks.k1.kafka.topic = first
+a1.sinks.k1.kafka.flumeBatchSize = 20
+a1.sinks.k1.kafka.producer.acks = 1
+a1.sinks.k1.kafka.producer.linger.ms = 1
+
+# channel
+a1.channels.c1.type = memory
+a1.channels.c1.capacity = 1000
+a1.channels.c1.transactionCapacity = 100
+
+# bind
+a1.sources.r1.channels = c1
+a1.sinks.k1.channel = c1
+```
+
+**2）** **启动kafka消费者**
+
+**3）** **进入flume根目录下，启动flume**
+
+```
+$ bin/flume-ng agent -c conf/ -n a1 -f jobs/flume-kafka.conf
+```
+
+**4） 向 /opt/module/data/flume.log里追加数据，查看kafka消费者消费情况**
+
+```
+$ echo hello >> /opt/module/data/flume.log
+```
+
+### 6.2 数据分离
+
+**0）需求:将flume采集的数据按照不同的类型输入到不同的topic中**
+
+​     将日志数据中带有xu1an的，输入到Kafka的first主题中，
+
+​     将日志数据中带有shangguigu的,输入到Kafka的second主题中，
+
+​          其他的数据输入到Kafka的third主题中
+
+**1）** **编写Flume的Interceptor**
+
+```
+package com.徐.kafka.flumeInterceptor;
+
+import org.apache.flume.Context;
+import org.apache.flume.Event;
+import org.apache.flume.interceptor.Interceptor;
+
+import javax.swing.text.html.HTMLEditorKit;
+import java.util.List;
+import java.util.Map;
+
+public class FlumeKafkaInterceptor implements Interceptor {
+    @Override
+    public void initialize() {
+
+    }
+
+    /**
+     * 如果包含"xu1an"的数据，发送到first主题
+     * 如果包含"sgg"的数据，发送到second主题
+     * 其他的数据发送到third主题
+     * @param event
+     * @return
+     */
+    @Override
+    public Event intercept(Event event) {
+        //1.获取event的header
+        Map<String, String> headers = event.getHeaders();
+        //2.获取event的body
+        String body = new String(event.getBody());
+        if(body.contains("xu1an")){
+            headers.put("topic","first");
+        }else if(body.contains("sgg")){
+            headers.put("topic","second");
+        }
+        return event;
+
+    }
+
+    @Override
+    public List<Event> intercept(List<Event> events) {
+        for (Event event : events) {
+          intercept(event);
+        }
+        return events;
+    }
+
+    @Override
+    public void close() {
+
+    }
+
+    public static class MyBuilder implements  Builder{
+
+        @Override
+        public Interceptor build() {
+            return  new FlumeKafkaInterceptor();
+        }
+
+        @Override
+        public void configure(Context context) {
+
+        }
+    }
+}
+```
+
+**2）将写好的interceptor打包上传到Flume安装目录的lib目录下**
+
+**3）配置flume**
+
+```
+# Name the components on this agent
+a1.sources = r1
+a1.sinks = k1
+a1.channels = c1
+
+# Describe/configure the source
+a1.sources.r1.type = netcat
+a1.sources.r1.bind = 0.0.0.0
+a1.sources.r1.port = 6666
+
+
+# Describe the sink
+a1.sinks.k1.type = org.apache.flume.sink.kafka.KafkaSink
+a1.sinks.k1.kafka.topic = third
+a1.sinks.k1.kafka.bootstrap.servers = hadoop102:9092,hadoop103:9092,hadoop104:9092
+a1.sinks.k1.kafka.flumeBatchSize = 20
+a1.sinks.k1.kafka.producer.acks = 1
+a1.sinks.k1.kafka.producer.linger.ms = 1
+
+#Interceptor
+a1.sources.r1.interceptors = i1
+a1.sources.r1.interceptors.i1.type = com.xu1an.kafka.flumeInterceptor.FlumeKafkaInterceptor$MyBuilder
+
+# # Use a channel which buffers events in memory
+a1.channels.c1.type = memory
+a1.channels.c1.capacity = 1000
+a1.channels.c1.transactionCapacity = 100
+
+# Bind the source and sink to the channel
+a1.sources.r1.channels = c1
+a1.sinks.k1.channel = c1
+```
+
+**4）** **启动kafka消费者**
+
+**5）** **进入flume根目录下，启动flume**
+
+```
+$ bin/flume-ng agent -c conf/ -n a1 -f jobs/flume-kafka.conf
+```
+
+**6） 向6666端口写数据，查看kafka消费者消费情况**
+
+## 7 Kafka面试题
+
+## 7.1 面试问题
+
+**1）**Kafka中的ISR(InSyncRepli)、OSR(OutSyncRepli)、AR(AllRepli)代表什么？
+
+**2）**Kafka中的HW、LEO等分别代表什么？
+
+**3）**Kafka中是怎么体现消息顺序性的？
+
+**4）**Kafka中的分区器、序列化器、拦截器是否了解？它们之间的处理顺序是什么？
+
+**5）**Kafka生产者客户端的整体结构是什么样子的？使用了几个线程来处理？分别是什么？
+
+**6）**“消费组中的消费者个数如果超过topic的分区，那么就会有消费者消费不到数据”这句话是否正确？
+
+**7）**消费者提交消费位移(offset)时提交的是当前消费到的最新消息的offset还是offset+1？
+
+**8）**有哪些情形会造成重复消费？
+
+**9）**那些情景会造成消息漏消费？
+
+**10）**当你使用kafka-topics.sh创建（删除）了一个topic之后，Kafka背后会执行什么逻辑？
+
+  1）会在zookeeper中的/brokers/topics节点下创建一个新的topic节点，如：/brokers/topics/first
+
+  2）触发Controller的监听程序
+
+  3）kafka Controller 负责topic的创建工作，并更新metadata cache
+
+**11）**topic的分区数可不可以增加？如果可以怎么增加？如果不可以，那又是为什么？
+
+**12）**topic的分区数可不可以减少？如果可以怎么减少？如果不可以，那又是为什么？
+
+**13）**Kafka有内部的topic吗？如果有是什么？有什么所用？
+
+**14）**Kafka分区分配的概念？
+
+**15）**简述Kafka的日志目录结构？
+
+**16）**如果我指定了一个offset，Kafka Controller怎么查找到对应的消息？
+
+**17）**聊一聊Kafka Controller的作用？
+
+**18）**Kafka中有那些地方需要选举？这些地方的选举策略又有哪些？
+
+**19）**失效副本是指什么？有那些应对措施？
+
+**20）**Kafka的哪些设计让它有如此高的性能？
+
