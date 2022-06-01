@@ -1414,7 +1414,7 @@ http://192.168.202.102:8048/ke
 
 ## 6 Flume对接Kafka
 
-## 6.1 简单实现
+### 6.1 简单实现
 
 **1）配置flume**
 
@@ -1589,7 +1589,7 @@ $ bin/flume-ng agent -c conf/ -n a1 -f jobs/flume-kafka.conf
 
 ## 7 Kafka面试题
 
-## 7.1 面试问题
+### 7.1 面试问题
 
 **1）**Kafka中的ISR(InSyncRepli)、OSR(OutSyncRepli)、AR(AllRepli)代表什么？
 
