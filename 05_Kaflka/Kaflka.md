@@ -1410,9 +1410,219 @@ export PATH=$PATH:$KE_HOME/bin
 
 http://192.168.202.102:8048/ke
 
+
+
 ---
 
-## 6 Flume对接Kafka
+## 6 Flume和Kafka对接
+
+ 1) **KafkaSource** 
+    用于从kafka中读取数据.
+    KafkaSource对于flume来讲是一个source的角色. 对于Kafka来讲，是一个消费者的角色.
+
+ 2. **KafkaSink**
+
+    用于往Kafka中写数据
+    KafkaSink对于flume来讲是一个sink的角色,对于kafka来讲，是一个生产者的角色. 
+
+ 3) **KafkaChannel** 
+    ① 作为一个基本的channel来使用. 
+      xxxSource -> KafkaChannel -> xxxSink 
+
+    ② 支持往kafka中写入数据
+      xxxSource -> KafkaChannel 
+
+    ③ 支持从Kafka中读取数据
+      kafkaChannel -> xxxSink   
+
+ **1. Flume -> Kafka :   KafkaSink**  
+
+对应6.1
+
+netcat-flume-kafka.conf 
+
+```
+#Named
+a1.sources = r1 
+a1.channels = c1 
+a1.sinks = k1 
+
+#Source
+a1.sources.r1.type = netcat
+a1.sources.r1.bind = 0.0.0.0
+a1.sources.r1.port = 6666 
+
+#Channel 
+a1.channels.c1.type = memory
+a1.channels.c1.capacity = 10000
+a1.channels.c1.transactionCapacity = 100
+
+#Sink
+a1.sinks.k1.type = org.apache.flume.sink.kafka.KafkaSink
+a1.sinks.k1.kafka.bootstrap.servers = hadoop102:9092,hadoop103:9092,hadoop104:9092
+a1.sinks.k1.kafka.topic = flumetopic
+a1.sinks.k1.kafka.flumeBatchSize = 100
+a1.sinks.k1.useFlumeEventFormat = true
+a1.sinks.k1.kafka.producer.acks = -1
+
+#Bind
+a1.sources.r1.channels = c1
+a1.sinks.k1.channel = c1
+```
+
+运行: 
+
+```
+flume-ng agent -c $FLUME_HOME/conf -f $FLUME_HOME/jobs/kafka/netcat-flume-kafka.conf -n a1 -Dflume.root.logger=INFO,console
+```
+
+**2. Flume -> Kafka :   KafkaSink 多topic支持**  
+
+对应6.2
+
+netcat-flume-kafkatopic.conf 
+
+```
+#Named
+a1.sources = r1 
+a1.channels = c1 
+a1.sinks = k1 
+
+#Source
+a1.sources.r1.type = netcat
+a1.sources.r1.bind = 0.0.0.0
+a1.sources.r1.port = 6666 
+
+#Channel 
+a1.channels.c1.type = memory
+a1.channels.c1.capacity = 10000
+a1.channels.c1.transactionCapacity = 100
+
+#Interceptor
+a1.sources.r1.interceptors = i1
+a1.sources.r1.interceptors.i1.type = com.xu1an.kafka.flumeinterceptor.DataValueInterceptor$MyBuilder
+
+#Sink
+a1.sinks.k1.type = org.apache.flume.sink.kafka.KafkaSink
+a1.sinks.k1.kafka.bootstrap.servers = hadoop102:9092,hadoop103:9092,hadoop104:9092
+a1.sinks.k1.kafka.topic = topicother
+a1.sinks.k1.kafka.flumeBatchSize = 100
+a1.sinks.k1.useFlumeEventFormat = true
+a1.sinks.k1.kafka.producer.acks = -1
+
+#Bind
+a1.sources.r1.channels = c1
+a1.sinks.k1.channel = c1
+```
+
+运行:
+
+```
+flume-ng agent -c $FLUME_HOME/conf -f $FLUME_HOME/jobs/kafka/netcat-flume-kafkatopic.conf -n a1 -Dflume.root.logger=INFO,console
+```
+
+**3. Kafka->Flume : Kafka Source** 
+
+kafka-flume-logger.conf
+
+```
+#Named
+a1.sources = r1 
+a1.channels = c1 
+a1.sinks = k1 
+
+#Source
+a1.sources.r1.type = org.apache.flume.source.kafka.KafkaSource
+a1.sources.r1.kafka.bootstrap.servers = hadoop102:9092,hadoop103:9092
+a1.sources.r1.kafka.topics = first
+a1.sources.r1.kafka.consumer.group.id = flume
+a1.sources.r1.batchSize = 100
+a1.sources.r1.useFlumeEventFormat = false
+
+#Channel 
+a1.channels.c1.type = memory
+a1.channels.c1.capacity = 10000
+a1.channels.c1.transactionCapacity = 100
+
+#Sink
+a1.sinks.k1.type = logger
+
+#Bind
+a1.sources.r1.channels = c1
+a1.sinks.k1.channel = c1
+```
+
+运行: 
+
+```
+flume-ng agent -c $FLUME_HOME/conf -f $FLUME_HOME/jobs/kafka/kafka-flume-logger.conf -n a1 -Dflume.root.logger=INFO,console
+```
+
+**4. KafkaChannel -> xxxSink**
+
+kafkachannel-flume-logger.conf
+
+```
+#Named
+a1.channels = c1 
+a1.sinks = k1 
+
+#Source
+
+#Channel 
+a1.channels.c1.type = org.apache.flume.channel.kafka.KafkaChannel
+a1.channels.c1.kafka.bootstrap.servers = hadoop102:9092,hadoop103:9092,hadoop104:9092
+a1.channels.c1.kafka.topic = first 
+a1.channels.c1.kafka.consumer.group.id = flume
+a1.channels.c1.kafka.consumer.auto.offset.reset = latest
+a1.channels.c1.parseAsFlumeEvent = false
+
+#Sink
+a1.sinks.k1.type = logger
+
+#Bind
+a1.sinks.k1.channel = c1
+```
+
+运行: 
+
+```
+flume-ng agent -c $FLUME_HOME/conf -f $FLUME_HOME/jobs/kafka/kafkachannel-flume-logger.conf -n a1 -Dflume.root.logger=INFO,console
+```
+
+ **5. xxxSource -> KafkaChannel** 
+
+netcat-flume-kafkachannel.conf
+
+```
+#Named
+a1.sources = r1
+a1.channels = c1 
+
+#Source
+a1.sources.r1.type = netcat
+a1.sources.r1.bind = 0.0.0.0
+a1.sources.r1.port = 6666 
+
+#Channel 
+a1.channels.c1.type = org.apache.flume.channel.kafka.KafkaChannel
+a1.channels.c1.kafka.bootstrap.servers = hadoop102:9092,hadoop103:9092,hadoop104:9092
+a1.channels.c1.kafka.topic = first 
+a1.channels.c1.parseAsFlumeEvent = false
+
+#Sink
+
+#Bind
+a1.sources.r1.channels = c1
+```
+
+运行:
+
+```
+flume-ng agent -c $FLUME_HOME/conf -f $FLUME_HOME/jobs/kafka/netcat-flume-kafkachannel.conf -n a1 -Dflume.root.logger=INFO,console
+```
+
+
 
 ### 6.1 简单实现
 
@@ -1473,7 +1683,7 @@ $ echo hello >> /opt/module/data/flume.log
 **1）** **编写Flume的Interceptor**
 
 ```
-package com.徐.kafka.flumeInterceptor;
+package com.xu1an.kafka.flumeInterceptor;
 
 import org.apache.flume.Context;
 import org.apache.flume.Event;
