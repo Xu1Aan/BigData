@@ -12,52 +12,52 @@
 
 <div align=left><img src=".\picture\hadoop_logo.png" width="25%"/></div>
 
-- **[hadoop集群搭建](./01_Hadoop/hadoop.md)**
-- **[HDFS分布式文件系统](./01_Hadoop/hdfs.md)**
-- **[MapReduce和Yarn](./01_Hadoop/MapReduce&Yarn.md)**
-- **[优化&新特性&HA](./01_Hadoop/Hadoop优化&新特性.md)**
+- [hadoop集群搭建](./01_Hadoop/hadoop.md)
+- [HDFS分布式文件系统](./01_Hadoop/hdfs.md)
+- [MapReduce和Yarn](./01_Hadoop/MapReduce&Yarn.md)
+- [优化&新特性&HA](./01_Hadoop/Hadoop优化&新特性.md)
 
----
+
 
 ### 二、Zookeeper
 
-<div align=left><img src=".\picture\Apache_ZooKeeper_logo.png" width="25%"/></div>
+<div align=left><img src=".\picture\Apache_ZooKeeper_logo.png" width="20%"/></div>
 
-- **[Zookeeper分布式协调框架](./02_Zookeeper/Zookeeper.md)**
+- [Zookeeper分布式协调框架](./02_Zookeeper/Zookeeper.md)
 
-----
+
 
 ### 三、Hive
 
-<div align=left><img src=".\picture\Hive_logo.png" width="25%"/></div>
+<div align=left><img src=".\picture\Hive_logo.png" width="23%"/></div>
 
-- **[Hive数据仓库工具](./03_Hive/Hive.md)**
+- [Hive数据仓库工具](./03_Hive/Hive.md)
 
----
+
 
 ### 四、Flume
 
-<div align=left><img src=".\picture\flume-logo.png" width="180px" height="180px"/></div>
+<div align=left><img src=".\picture\flume-logo.png" width="150px" height="150px"/></div>
 
-- **[Flume海量日志采集](./04_Flume/Flume.md)**
+- [Flume海量日志采集](./04_Flume/Flume.md)
 
----
+
 
 ### 五、Kaflka
 
-<div align=left><img src=".\picture\kafka-logo.jpg" width="25%"/></div>
+<div align=left><img src=".\picture\kafka-logo.jpg" width="20%"/></div>
 
-- **[Kaflka消息队列](./05_Kaflka/Kaflka.md)**
+- [Kaflka消息队列](./05_Kaflka/Kaflka.md)
 
----
+
 
 ### 六、HBase
 
-<div align=left><img src=".\picture\hbase_logo_with_orca_large.png" width="30%"/></div>
+<div align=left><img src=".\picture\hbase_logo_with_orca_large.png" width="25%"/></div>
 
-- **[HBase列式存储分布式数据库](./06_HBase)**
+- [HBase列式存储分布式数据库](./06_HBase)
 
----
+
 
 - [ ] Scala
 - [ ] Spark
