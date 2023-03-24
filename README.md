@@ -77,7 +77,7 @@
 - [x] 从零实现分布式流/批计算框架
   - [单点MapReduce(批处理)计算框架](https://github.com/Xu1Aan/MapReduceDaemon)
   - [分布式MapReduece(批处理)计算框架](https://github.com/Xu1Aan/MapReduece)
-  - [分布式MapReduece(流处理)计算框架](https://github.com/Xu1Aan/MapReduece)
+  - [分布式MapReduece(流处理)计算框架](https://github.com/Xu1Aan/StreamMapReduce)
 - [ ] 从零实现分布存储框架
   - ToDo（目前已经完成一半）
 
