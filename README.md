@@ -4,13 +4,20 @@
 
 ## 学习路线
 
-### 大数据平台技术
+### 一、基础篇
+
+- Java语言基础
+- 并发编程
+- JVM
+- NIO
+- Netty
+- RPC
+
+### 二、大数据平台技术
 
 大数据平台是为了计算，现今社会所产生的越来越大的 数据量，以存储、运算、展现作为目的的平台。大数据技术是指从各种各样类型的数据中，快速获得有价值信息的能力。适用于大数据技术的，有分布式数据库，云计算平台，互联网，和可扩展的存储系统。 
 
----
-
-### 一、Hadoop
+### Hadoop
 
 <div align=left><img src=".\picture\hadoop_logo.png" width="25%"/></div>
 
@@ -21,7 +28,7 @@
 
 
 
-### 二、Zookeeper
+### Zookeeper
 
 <div align=left><img src=".\picture\Apache_ZooKeeper_logo.png" width="20%"/></div>
 
@@ -29,7 +36,7 @@
 
 
 
-### 三、Hive
+### Hive
 
 <div align=left><img src=".\picture\Hive_logo.png" width="23%"/></div>
 
@@ -37,7 +44,7 @@
 
 
 
-### 四、Flume
+### Flume
 
 <div align=left><img src=".\picture\flume-logo.png" width="150px" height="150px"/></div>
 
@@ -45,7 +52,7 @@
 
 
 
-### 五、Kaflka
+### Kaflka
 
 <div align=left><img src=".\picture\kafka-logo.jpg" width="20%"/></div>
 
@@ -53,7 +60,7 @@
 
 
 
-### 六、HBase
+### HBase
 
 <div align=left><img src=".\picture\hbase_logo_with_orca_large.png" width="25%"/></div>
 
@@ -65,13 +72,18 @@
 - [ ] Spark
 - [ ] Flink
 
-### 大数据平台技术（练习）
+### 大数据平台技术（项目/框架实现）
+
+- [x] 从零实现分布式流/批计算框架
+  - [单点MapReduce(批处理)计算框架](https://github.com/Xu1Aan/MapReduceDaemon)
+  - [分布式MapReduece(批处理)计算框架](https://github.com/Xu1Aan/MapReduece)
+  - [分布式MapReduece(流处理)计算框架](https://github.com/Xu1Aan/MapReduece)
+- [ ] 从零实现分布存储框架
+  - ToDo（目前已经完成一半）
 
 - [x] 数仓采集
   - [电商数仓采集项目（用户行为数据采集）](./10_Porject/01_数仓采集/数仓采集(用户行为数据仓库).md)
   - [电商数仓采集项目（业务数据采集）](./10_Porject/01_数仓采集/数仓采集(系统业务数据仓库).md)
-- [ ] 电商数仓
-- [ ] 实时数仓
 
 ---
 
@@ -116,6 +128,4 @@
   > 推荐系统框架图：
 
   <img src=".\01_Hadoop\picture\推荐系统框架图.png" style="zoom:25%;" />
-
-- [ ] 待续...
 
